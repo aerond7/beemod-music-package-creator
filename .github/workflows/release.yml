@@ -36,11 +36,15 @@ jobs:
             --runtime win-x64 `
             --self-contained true `
             -p:PublishSingleFile=true `
+            -p:DebugSymbols=false `
+            -p:DebugType=none `
             -p:IncludeNativeLibrariesForSelfExtract=true `
             --output "$env:RUNNER_TEMP/publish"
 
       - name: Archive
-        run: Compress-Archive -Path "$env:RUNNER_TEMP/publish/*" -DestinationPath "$env:RUNNER_TEMP/$env:ARTIFACT_NAME.zip" -Force
+        run: |
+          Get-ChildItem -Path "$env:RUNNER_TEMP/publish" -Filter "*.pdb" -File -Recurse | Remove-Item -Force
+          Compress-Archive -Path "$env:RUNNER_TEMP/publish/*" -DestinationPath "$env:RUNNER_TEMP/$env:ARTIFACT_NAME.zip" -Force
 
       - uses: actions/upload-artifact@v4
         with:
