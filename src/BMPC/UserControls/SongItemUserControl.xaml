@@ -1,0 +1,79 @@
+<UserControl x:Class="BMPC.UserControls.SongItemUserControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:BMPC.UserControls"
+             mc:Ignorable="d" 
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             TextElement.FontWeight="Medium"
+             TextElement.FontSize="14"
+             FontFamily="{materialDesign:MaterialDesignFont}"
+             d:DesignHeight="120" d:DesignWidth="800">
+
+    <Grid Margin="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <Image Grid.Column="0"
+               Width="64"
+               Height="64"
+               Margin="8"
+               Source="{Binding Icon}"/>
+
+        <Grid Grid.Column="1" Margin="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <TextBlock Text="{Binding Name}" Grid.Row="0"
+                           FontWeight="Bold"
+                           FontSize="18"
+                           Foreground="{DynamicResource MaterialDesign.Brush.Primary}"/>
+
+                <TextBlock Text="{Binding Description}" Grid.Row="1" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                           FontSize="14"
+                           Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}"/>
+            </Grid>
+
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Vertical" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <TextBlock Text="{Binding Authors}" Grid.Row="0"
+                               FontWeight="Normal"
+                               FontSize="12"
+                               Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}"/>
+                </StackPanel>
+                
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                    <Button Style="{DynamicResource MaterialDesignFlatDarkBgButton}" Padding="6,2,10,2" Margin="0,0,10,0" Command="{Binding EditCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <materialDesign:PackIcon Margin="0,0,5,0" Kind="Pen"/>
+                            <TextBlock Text="EDIT"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Style="{DynamicResource MaterialDesignFlatDarkBgButton}" Padding="6,2,10,2" Background="{DynamicResource MaterialDesign.Brush.ValidationError}" Foreground="White" BorderBrush="{DynamicResource MaterialDesign.Brush.ValidationError}" Command="{Binding RemoveCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <materialDesign:PackIcon Margin="0,0,5,0" Kind="Trash"/>
+                            <TextBlock Text="REMOVE"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+    
+</UserControl>

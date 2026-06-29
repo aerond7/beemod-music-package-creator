@@ -1,0 +1,36 @@
+<UserControl x:Class="BMPC.UserControls.PackageImportingUC"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:BMPC.UserControls"
+             mc:Ignorable="d" 
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:interactivity="http://schemas.microsoft.com/xaml/behaviors"
+             TextElement.FontWeight="Medium"
+             TextElement.FontSize="14"
+             FontFamily="{materialDesign:MaterialDesignFont}"
+             d:DesignHeight="580" d:DesignWidth="800">
+
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </UserControl.Resources>
+
+    <Grid Margin="50,50,50,50" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0" HorizontalAlignment="Center" VerticalAlignment="Bottom">
+            <ProgressBar Visibility="{Binding Path=SpinnerVisible, Converter={StaticResource BoolToVis}}" IsIndeterminate="True" Style="{StaticResource MaterialDesignCircularProgressBar}" Value="0" Width="50" Height="50" />
+            <materialDesign:PackIcon Visibility="{Binding Path=IsFinished, Converter={StaticResource BoolToVis}}" Margin="0,0,0,0" Kind="TickCircle" Foreground="{DynamicResource BmpcSuccessBrush}" Height="50" Width="50"/>
+        </Grid>
+        <StackPanel Grid.Row="1" Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Top">
+            <Label Name="LblStatus1" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesign.Brush.Foreground}" Content=" "></Label>
+            <Label Name="LblStatus2" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" Content=" "></Label>
+            <Label Name="LblStatus3" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" Opacity="0.82" Content=" "></Label>
+            <Label Name="LblStatus4" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" Opacity="0.64" Content=" "></Label>
+            <Label Name="LblStatus5" HorizontalAlignment="Center" Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" Opacity="0.46" Content=" "></Label>
+        </StackPanel>
+    </Grid>
+</UserControl>

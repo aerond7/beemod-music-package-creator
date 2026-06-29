@@ -1,0 +1,50 @@
+﻿<UserControl x:Class="BMPC.UserControls.PackageDetailsUC"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             TextElement.FontWeight="Medium"
+             TextElement.FontSize="14"
+             FontFamily="{materialDesign:MaterialDesignFont}"
+             d:DesignHeight="580"
+             d:DesignWidth="800">
+
+    <!-- scroll safety and centered form -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <Grid Margin="40">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Orientation="Vertical"
+                        VerticalAlignment="Top"
+                        HorizontalAlignment="Stretch"
+                        MaxWidth="500">
+
+                <TextBox x:Name="TxtName"
+                         Margin="0,0,0,20"
+                         VerticalAlignment="Center"
+                         materialDesign:HintAssist.Hint="Name *"
+                         materialDesign:HintAssist.HelperText="Name of the package. Minimum length is 3 characters."
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+
+                <TextBox x:Name="TxtDescription"
+                         Margin="0,0,0,20"
+                         VerticalAlignment="Center"
+                         materialDesign:HintAssist.Hint="Description *"
+                         materialDesign:HintAssist.HelperText="Description of the package."
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+
+                <TextBox x:Name="TxtGroup"
+                         Margin="0,0,0,0"
+                         VerticalAlignment="Center"
+                         materialDesign:HintAssist.Hint="Group name"
+                         materialDesign:HintAssist.HelperText="Music in this package will be grouped under this name in the BEEmod music selection menu."
+                         Style="{StaticResource MaterialDesignFloatingHintTextBox}" />
+
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

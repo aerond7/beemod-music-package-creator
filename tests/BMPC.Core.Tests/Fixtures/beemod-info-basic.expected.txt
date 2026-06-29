@@ -1,0 +1,55 @@
+// This package was generated using BMPC v1.3.0
+// See more information about BMPC at https://bmpc.aerond.dev/
+
+"ID"	"BMPC_TESTPACKAGEONE_PACK"
+"Name"	"Test Package, One"
+"Desc"	"Desc with \"quote\" and snow \u2603"
+
+"Music"
+{
+"ID"	"BMPC_BASESONG_MUSIC"
+"Name"	"Base Song"
+"ShortName"	"Base"
+"Group"	"Puzzle Group"
+"Icon"	"icons/base.png"
+"IconLarge"	"icons/base_large.png"
+"Authors"	"Author \\ Name"
+"Description"	"Line one\nLine two"
+"Sample"
+{
+"Base"	"samples/base.wav"
+"tBeam"	"samples/tbeam.wav"
+}
+"Soundscript"
+{
+"Base"	"scripts/base.txt"
+"tBeam"	"scripts/tbeam.txt"
+"sync_funnel"	"1"
+"SpeedGel"
+{
+"snd"	"sfx/speed_1.wav"
+"snd"	"sfx/speed_2.wav"
+}
+"BounceGel"
+{
+"snd"	"sfx/bounce.wav"
+}
+}
+}
+
+"Music"
+{
+"ID"	"BMPC_DEFAULTFUNNEL_MUSIC"
+"Name"	"Default Funnel"
+"Group"	"Puzzle Group"
+"Icon"	"icons/default.png"
+"IconLarge"	"icons/default_large.png"
+"Authors"	"BMPC"
+"Description"	"Uses default tractor beam child"
+"Sample"	"samples/default.wav"
+"Soundscript"	"scripts/default.txt"
+"Children"
+{
+"tBeam"	"VALVE_TEST"
+}
+}
