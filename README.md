@@ -6,6 +6,8 @@ BMPC is open source under the MIT License. It is intended for BEEmod/BEE2 users 
 
 Website: [bmpc.aerond.dev](https://bmpc.aerond.dev)
 
+For releases prior to 1.3.0 see [aerond7/BMPC-downloads/releases](https://github.com/aerond7/BMPC-downloads/releases).
+
 ## BEEmod / BEE2 References
 
 BMPC is an independent companion tool for BEEmod/BEE2 package creation. For BEEmod/BEE2 downloads, source code, items, and project information, see:
