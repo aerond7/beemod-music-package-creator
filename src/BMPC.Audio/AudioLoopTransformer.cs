@@ -6,8 +6,11 @@ namespace BMPC.Audio
 {
     public static class AudioLoopTransformer
     {
+        private const int BufferSize = 81920;
         private const int SmplChunkLength = 68;
         private const int SmplChunkDataLength = 60;
+        private static readonly byte[] RiffMarker = Encoding.ASCII.GetBytes("RIFF");
+        private static readonly byte[] SmplMarker = Encoding.ASCII.GetBytes("smpl");
 
         public static AudioLoopInfo ReadLoopInfo(string filePath)
         {
@@ -30,8 +33,13 @@ namespace BMPC.Audio
             string? existingFilePath = null,
             AudioLoopPoints? loopPoints = null)
         {
-            var waveData = File.ReadAllBytes(inputPath);
-            if (!TryReadWaveLayout(waveData, out var layout))
+            if (!TryReadWaveLayout(inputPath, out var layout))
+            {
+                return;
+            }
+
+            var riffIndex = FindFirstMarker(inputPath, RiffMarker);
+            if (riffIndex == -1)
             {
                 return;
             }
@@ -42,16 +50,41 @@ namespace BMPC.Audio
             points ??= CreateFullFileLoop(layout);
             points = NormalizeLoop(points, layout.DurationSeconds);
 
-            waveData = RemoveChunk(waveData, "smpl");
+            var isInPlace = string.Equals(
+                Path.GetFullPath(inputPath),
+                Path.GetFullPath(outputPath),
+                StringComparison.OrdinalIgnoreCase);
 
-            if (points.IsEnabled)
+            if (!points.IsEnabled)
             {
-                var smplChunk = CreateSmplChunk(points, layout.SampleRate, layout.TotalSamples);
-                waveData = AppendBytes(waveData, smplChunk);
+                if (!isInPlace)
+                {
+                    using var inputStream = File.OpenRead(inputPath);
+                    using var outputStream = File.Create(outputPath);
+                    inputStream.CopyTo(outputStream);
+                }
+
+                return;
             }
 
-            WriteRiffSize(waveData);
-            File.WriteAllBytes(outputPath, waveData);
+            var smplChunk = CreateSmplChunk(points, layout.SampleRate, layout.TotalSamples);
+
+            if (isInPlace)
+            {
+                using var outputStream = new FileStream(outputPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                outputStream.Position = outputStream.Length;
+                outputStream.Write(smplChunk, 0, smplChunk.Length);
+                WriteRiffFileSize(outputStream, riffIndex + 4, outputStream.Length);
+                return;
+            }
+
+            using (var inputStream = File.OpenRead(inputPath))
+            using (var outputStream = File.Create(outputPath))
+            {
+                inputStream.CopyTo(outputStream);
+                outputStream.Write(smplChunk, 0, smplChunk.Length);
+                WriteRiffFileSize(outputStream, riffIndex + 4, outputStream.Length);
+            }
         }
 
         private static AudioLoopPoints? TryReadSmplLoopPoints(string filePath)
@@ -61,35 +94,90 @@ namespace BMPC.Audio
                 return null;
             }
 
-            var waveData = File.ReadAllBytes(filePath);
-            if (!TryReadWaveLayout(waveData, out var layout))
+            if (!TryReadWaveLayout(filePath, out var layout))
             {
                 return null;
             }
 
-            var smplChunk = layout.Chunks.FirstOrDefault(c => c.Id == "smpl");
-            if (smplChunk is null || smplChunk.Size < SmplChunkDataLength)
+            var smplIndex = FindLastMarker(filePath, SmplMarker);
+            if (smplIndex == -1)
             {
                 return null;
             }
 
-            var loopCount = BitConverter.ToInt32(waveData, smplChunk.DataOffset + 28);
-            if (loopCount <= 0 || smplChunk.Size < 60)
+            using var stream = File.OpenRead(filePath);
+            if (stream.Length < smplIndex + 68)
             {
                 return null;
             }
 
-            var startSample = BitConverter.ToUInt32(waveData, smplChunk.DataOffset + 44);
-            var endSample = BitConverter.ToUInt32(waveData, smplChunk.DataOffset + 48);
-            var startSeconds = SamplesToSeconds(startSample, layout.SampleRate);
-            var endSeconds = SamplesToSeconds(endSample, layout.SampleRate);
+            stream.Position = smplIndex + 4;
+            Span<byte> bytes = stackalloc byte[4];
+            stream.ReadExactly(bytes);
+            var smplChunkSize = BitConverter.ToInt32(bytes);
+            if (smplChunkSize < SmplChunkDataLength)
+            {
+                return null;
+            }
+
+            stream.Position = smplIndex + 36;
+            stream.ReadExactly(bytes);
+            var loopCount = BitConverter.ToInt32(bytes);
+            if (loopCount <= 0)
+            {
+                return null;
+            }
+
+            stream.Position = smplIndex + 52;
+            stream.ReadExactly(bytes);
+            var startSample = BitConverter.ToUInt32(bytes);
+
+            stream.ReadExactly(bytes);
+            var endSample = BitConverter.ToUInt32(bytes);
 
             return NormalizeLoop(new AudioLoopPoints
             {
                 IsEnabled = true,
-                StartSeconds = startSeconds,
-                EndSeconds = endSeconds
+                StartSeconds = SamplesToSeconds(startSample, layout.SampleRate),
+                EndSeconds = SamplesToSeconds(endSample, layout.SampleRate)
             }, layout.DurationSeconds);
+        }
+
+        private static bool TryReadWaveLayout(string filePath, out WaveLayout layout)
+        {
+            layout = new WaveLayout();
+
+            try
+            {
+                using var stream = File.OpenRead(filePath);
+                Span<byte> header = stackalloc byte[12];
+                if (stream.Length < header.Length)
+                {
+                    return false;
+                }
+
+                stream.ReadExactly(header);
+                if (!header[..4].SequenceEqual(RiffMarker) || Encoding.ASCII.GetString(header[8..12]) != "WAVE")
+                {
+                    return false;
+                }
+
+                using var waveReader = new WaveFileReader(filePath);
+                var durationSeconds = waveReader.TotalTime.TotalSeconds;
+                var sampleRate = waveReader.WaveFormat.SampleRate;
+
+                layout = new WaveLayout
+                {
+                    SampleRate = sampleRate,
+                    DurationSeconds = durationSeconds,
+                    TotalSamples = SecondsToSamples(durationSeconds, sampleRate)
+                };
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private static AudioLoopPoints CreateFullFileLoop(WaveLayout layout)
@@ -144,94 +232,89 @@ namespace BMPC.Audio
             return bytes;
         }
 
-        private static bool TryReadWaveLayout(byte[] waveData, out WaveLayout layout)
+        private static long FindFirstMarker(string filePath, byte[] marker)
         {
-            layout = new WaveLayout();
-            if (waveData.Length < 12 ||
-                Encoding.ASCII.GetString(waveData, 0, 4) != "RIFF" ||
-                Encoding.ASCII.GetString(waveData, 8, 4) != "WAVE")
+            using var stream = File.OpenRead(filePath);
+            var matched = 0;
+
+            for (var position = 0L; position < stream.Length; position++)
             {
-                return false;
+                var value = stream.ReadByte();
+                if (value == marker[matched])
+                {
+                    matched++;
+                    if (matched == marker.Length)
+                    {
+                        return position - marker.Length + 1;
+                    }
+
+                    continue;
+                }
+
+                matched = value == marker[0] ? 1 : 0;
             }
 
-            var chunks = ReadChunks(waveData);
-            var fmt = chunks.FirstOrDefault(c => c.Id == "fmt ");
-            var data = chunks.FirstOrDefault(c => c.Id == "data");
-            if (fmt is null || data is null || fmt.Size < 16)
+            return -1;
+        }
+
+        private static long FindLastMarker(string filePath, byte[] marker)
+        {
+            using var stream = File.OpenRead(filePath);
+            if (stream.Length < marker.Length)
             {
-                return false;
+                return -1;
             }
 
-            var channels = BitConverter.ToUInt16(waveData, fmt.DataOffset + 2);
-            var sampleRate = BitConverter.ToInt32(waveData, fmt.DataOffset + 4);
-            var blockAlign = BitConverter.ToUInt16(waveData, fmt.DataOffset + 12);
-            if (channels == 0 || sampleRate <= 0 || blockAlign == 0)
+            var buffer = new byte[BufferSize + marker.Length - 1];
+            var carry = Array.Empty<byte>();
+            var blockEnd = stream.Length;
+
+            while (blockEnd > 0)
             {
-                return false;
+                var readSize = (int)Math.Min(BufferSize, blockEnd);
+                blockEnd -= readSize;
+
+                stream.Position = blockEnd;
+                stream.ReadExactly(buffer.AsSpan(0, readSize));
+                carry.CopyTo(buffer.AsSpan(readSize));
+
+                var searchLength = readSize + carry.Length;
+                for (var i = searchLength - marker.Length; i >= 0; i--)
+                {
+                    if (IsMatch(buffer, i, marker))
+                    {
+                        return blockEnd + i;
+                    }
+                }
+
+                var carryLength = Math.Min(marker.Length - 1, readSize);
+                carry = buffer[..carryLength].ToArray();
             }
 
-            using var stream = new MemoryStream(waveData, writable: false);
-            using var reader = new WaveFileReader(stream);
-            var durationSeconds = reader.TotalTime.TotalSeconds;
+            return -1;
+        }
 
-            layout.Chunks = chunks;
-            layout.SampleRate = sampleRate;
-            layout.DurationSeconds = durationSeconds;
-            layout.TotalSamples = SecondsToSamples(durationSeconds, sampleRate);
+        private static bool IsMatch(byte[] buffer, int offset, byte[] marker)
+        {
+            for (var i = 0; i < marker.Length; i++)
+            {
+                if (buffer[offset + i] != marker[i])
+                {
+                    return false;
+                }
+            }
+
             return true;
         }
 
-        private static List<WaveChunk> ReadChunks(byte[] waveData)
+        private static void WriteRiffFileSize(Stream stream, long fileSizeIndex, long outputLength)
         {
-            var chunks = new List<WaveChunk>();
-            var offset = 12;
-            while (offset + 8 <= waveData.Length)
-            {
-                var id = Encoding.ASCII.GetString(waveData, offset, 4);
-                var size = BitConverter.ToInt32(waveData, offset + 4);
-                if (size < 0)
-                {
-                    break;
-                }
-
-                var dataOffset = offset + 8;
-                if (dataOffset + size > waveData.Length)
-                {
-                    break;
-                }
-
-                chunks.Add(new WaveChunk(id, offset, dataOffset, size));
-                offset = dataOffset + size + (size % 2);
-            }
-
-            return chunks;
+            stream.Position = fileSizeIndex;
+            int fileSize = (int)(outputLength - 8);
+            Span<byte> fileSizeBytes = stackalloc byte[4];
+            BitConverter.GetBytes(fileSize).CopyTo(fileSizeBytes);
+            stream.Write(fileSizeBytes);
         }
-
-        private static byte[] RemoveChunk(byte[] waveData, string chunkId)
-        {
-            var result = waveData;
-            foreach (var chunk in ReadChunks(result).Where(c => c.Id == chunkId).OrderByDescending(c => c.HeaderOffset))
-            {
-                var chunkLength = 8 + chunk.Size + (chunk.Size % 2);
-                var next = new byte[result.Length - chunkLength];
-                Buffer.BlockCopy(result, 0, next, 0, chunk.HeaderOffset);
-                Buffer.BlockCopy(result, chunk.HeaderOffset + chunkLength, next, chunk.HeaderOffset, result.Length - chunk.HeaderOffset - chunkLength);
-                result = next;
-            }
-
-            return result;
-        }
-
-        private static byte[] AppendBytes(byte[] left, byte[] right)
-        {
-            var result = new byte[left.Length + right.Length];
-            left.CopyTo(result, 0);
-            right.CopyTo(result, left.Length);
-            return result;
-        }
-
-        private static void WriteRiffSize(byte[] waveData)
-            => BitConverter.GetBytes(waveData.Length - 8).CopyTo(waveData, 4);
 
         private static long SecondsToSamples(double seconds, int sampleRate)
             => (long)Math.Round(seconds * sampleRate, MidpointRounding.AwayFromZero);
@@ -250,12 +333,9 @@ namespace BMPC.Audio
 
         private sealed class WaveLayout
         {
-            public List<WaveChunk> Chunks { get; set; } = [];
-            public int SampleRate { get; set; }
-            public double DurationSeconds { get; set; }
-            public long TotalSamples { get; set; }
+            public int SampleRate { get; init; }
+            public double DurationSeconds { get; init; }
+            public long TotalSamples { get; init; }
         }
-
-        private sealed record WaveChunk(string Id, int HeaderOffset, int DataOffset, int Size);
     }
 }
