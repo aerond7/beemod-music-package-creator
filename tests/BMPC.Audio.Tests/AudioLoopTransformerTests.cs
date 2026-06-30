@@ -39,6 +39,22 @@ public class AudioLoopTransformerTests
     }
 
     [Fact]
+    public void AddLoopPointsToWav_CanUpdateInputFileInPlace()
+    {
+        using var temp = TempDirectory.Create();
+        var inputPath = Path.Combine(temp.Path, "input.wav");
+        var input = CreateMinimalWav(dataLength: 4);
+        File.WriteAllBytes(inputPath, input);
+
+        AudioLoopTransformer.AddLoopPointsToWav(inputPath, inputPath);
+
+        var output = File.ReadAllBytes(inputPath);
+        Assert.Equal(input.Length + 68, output.Length);
+        Assert.Equal("smpl", Encoding.ASCII.GetString(output, input.Length, 4));
+        Assert.Equal(output.Length - 8, BitConverter.ToInt32(output, 4));
+    }
+
+    [Fact]
     public void AddLoopPointsToWav_CopiesExistingSmplChunk()
     {
         using var temp = TempDirectory.Create();
