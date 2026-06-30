@@ -27,6 +27,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<ProjectReference Include="..\BMPC.Audio\BMPC.Audio.csproj" />
 		<ProjectReference Include="..\BMPC.Core\BMPC.Core.csproj" />
 	</ItemGroup>
 

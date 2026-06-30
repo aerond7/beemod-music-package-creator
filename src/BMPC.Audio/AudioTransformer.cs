@@ -1,16 +1,16 @@
 ﻿using NAudio.Wave.SampleProviders;
 using NAudio.Wave;
 using BMPC.Audio.Objects;
-using System.Text;
 
 namespace BMPC.Audio
 {
     public static class AudioTransformer
     {
         private const int DesiredSampleRate = 44100;
-        private const int DesiredBitRate = 16;
-
-        public static AudioTransformResult ConvertForGameWav(string inputFilePath, string outputFilePath)
+        public static AudioTransformResult ConvertForGameWav(
+            string inputFilePath,
+            string outputFilePath,
+            AudioLoopPoints? loopPoints = null)
         {
             try
             {
@@ -65,7 +65,7 @@ namespace BMPC.Audio
 
             try
             {
-                AudioLoopTransformer.AddLoopPointsToWav(outputFilePath, outputFilePath, inputFilePath);
+                AudioLoopTransformer.AddLoopPointsToWav(outputFilePath, outputFilePath, inputFilePath, loopPoints);
             }
             catch (Exception ex)
             {

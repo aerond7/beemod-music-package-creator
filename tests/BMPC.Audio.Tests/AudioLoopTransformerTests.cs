@@ -1,4 +1,5 @@
 using System.Text;
+using BMPC.Audio.Objects;
 
 namespace BMPC.Audio.Tests;
 
@@ -21,7 +22,7 @@ public class AudioLoopTransformerTests
         Assert.Equal(60, BitConverter.ToInt32(output, input.Length + 4));
         Assert.Equal(1, BitConverter.ToInt32(output, input.Length + 36));
         Assert.Equal(0, BitConverter.ToInt32(output, input.Length + 52));
-        Assert.Equal(4, BitConverter.ToInt32(output, input.Length + 56));
+        Assert.Equal(2, BitConverter.ToInt32(output, input.Length + 56));
     }
 
     [Fact]
@@ -39,21 +40,57 @@ public class AudioLoopTransformerTests
     }
 
     [Fact]
-    public void AddLoopPointsToWav_CopiesExistingSmplChunk()
+    public void AddLoopPointsToWav_UsesExistingSmplLoopPoints()
     {
         using var temp = TempDirectory.Create();
         var inputPath = Path.Combine(temp.Path, "input.wav");
         var existingPath = Path.Combine(temp.Path, "existing.wav");
         var outputPath = Path.Combine(temp.Path, "output.wav");
         var input = CreateMinimalWav(dataLength: 4);
-        var customSmplChunk = CreateSmplChunk(samplePeriod: 1234);
+        var customSmplChunk = CreateSmplChunk(startSample: 1, endSample: 2);
         File.WriteAllBytes(inputPath, input);
         File.WriteAllBytes(existingPath, AppendBytes(CreateMinimalWav(dataLength: 4), customSmplChunk));
 
         AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath, existingPath);
 
         var output = File.ReadAllBytes(outputPath);
-        Assert.Equal(customSmplChunk, output.Skip(input.Length).ToArray());
+        Assert.Equal(1, BitConverter.ToInt32(output, input.Length + 52));
+        Assert.Equal(2, BitConverter.ToInt32(output, input.Length + 56));
+    }
+
+    [Fact]
+    public void AddLoopPointsToWav_WithExplicitLoopPoints_WritesSamplePositions()
+    {
+        using var temp = TempDirectory.Create();
+        var inputPath = Path.Combine(temp.Path, "input.wav");
+        var outputPath = Path.Combine(temp.Path, "output.wav");
+        var input = CreateMinimalWav(dataLength: 88_200);
+        File.WriteAllBytes(inputPath, input);
+
+        AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath, loopPoints: new AudioLoopPoints
+        {
+            StartSeconds = 0.25,
+            EndSeconds = 0.75
+        });
+
+        var output = File.ReadAllBytes(outputPath);
+        Assert.Equal(11_025, BitConverter.ToInt32(output, input.Length + 52));
+        Assert.Equal(33_075, BitConverter.ToInt32(output, input.Length + 56));
+    }
+
+    [Fact]
+    public void ReadLoopInfo_WithExistingSmpl_ReturnsLoopPointsInSeconds()
+    {
+        using var temp = TempDirectory.Create();
+        var inputPath = Path.Combine(temp.Path, "input.wav");
+        File.WriteAllBytes(inputPath, AppendBytes(CreateMinimalWav(dataLength: 88_200), CreateSmplChunk(startSample: 11_025, endSample: 33_075)));
+
+        var info = AudioLoopTransformer.ReadLoopInfo(inputPath);
+
+        Assert.Equal(44100, info.SampleRate);
+        Assert.NotNull(info.ExistingLoopPoints);
+        Assert.Equal(0.25, info.ExistingLoopPoints.StartSeconds, precision: 3);
+        Assert.Equal(0.75, info.ExistingLoopPoints.EndSeconds, precision: 3);
     }
 
     [Fact]
@@ -94,15 +131,15 @@ public class AudioLoopTransformerTests
         return bytes;
     }
 
-    private static byte[] CreateSmplChunk(int samplePeriod)
+    private static byte[] CreateSmplChunk(int startSample, int endSample)
     {
         var bytes = new byte[68];
         Encoding.ASCII.GetBytes("smpl").CopyTo(bytes, 0);
         BitConverter.GetBytes(60).CopyTo(bytes, 4);
-        BitConverter.GetBytes(samplePeriod).CopyTo(bytes, 16);
+        BitConverter.GetBytes(22676).CopyTo(bytes, 16);
         BitConverter.GetBytes(1).CopyTo(bytes, 36);
-        BitConverter.GetBytes(2).CopyTo(bytes, 52);
-        BitConverter.GetBytes(99).CopyTo(bytes, 56);
+        BitConverter.GetBytes(startSample).CopyTo(bytes, 52);
+        BitConverter.GetBytes(endSample).CopyTo(bytes, 56);
         return bytes;
     }
 

@@ -1,0 +1,125 @@
+<UserControl x:Class="BMPC.UserControls.LoopPointsEditor"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             mc:Ignorable="d"
+             d:DesignHeight="220"
+             d:DesignWidth="460"
+             Unloaded="Root_Unloaded">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="132" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                BorderBrush="{DynamicResource MaterialDesign.Brush.Separator.Background}"
+                BorderThickness="1"
+                CornerRadius="4"
+                Background="{DynamicResource MaterialDesign.Brush.Background}">
+            <Grid>
+                <Canvas x:Name="WaveCanvas"
+                        ClipToBounds="True"
+                        Background="Transparent"
+                        MouseDown="WaveCanvas_MouseDown"
+                        MouseMove="WaveCanvas_MouseMove"
+                        MouseUp="WaveCanvas_MouseUp"
+                        SizeChanged="WaveCanvas_SizeChanged" />
+                <TextBlock x:Name="EmptyText"
+                           Text="Select audio"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="13"
+                           Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="1"
+              Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="92" />
+                <ColumnDefinition Width="92" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0"
+                    Width="34"
+                    Height="34"
+                    Padding="0"
+                    Margin="0,0,6,0"
+                    Style="{DynamicResource MaterialDesignFlatAccentButton}"
+                    Click="PlayButton_Click"
+                    ToolTip="Preview loop">
+                <materialDesign:PackIcon Kind="Play" />
+            </Button>
+
+            <Button Grid.Column="1"
+                    Width="34"
+                    Height="34"
+                    Padding="0"
+                    Margin="0,0,6,0"
+                    Style="{DynamicResource MaterialDesignFlatAccentButton}"
+                    Click="StopButton_Click"
+                    ToolTip="Stop preview">
+                <materialDesign:PackIcon Kind="Stop" />
+            </Button>
+
+            <Button Grid.Column="2"
+                    Width="34"
+                    Height="34"
+                    Padding="0"
+                    Margin="0,0,6,0"
+                    Style="{DynamicResource MaterialDesignFlatAccentButton}"
+                    Click="UseSourceButton_Click"
+                    ToolTip="Use loop points from source file">
+                <materialDesign:PackIcon Kind="FileImportOutline" />
+            </Button>
+
+            <Button Grid.Column="3"
+                    Width="34"
+                    Height="34"
+                    Padding="0"
+                    Margin="0,0,12,0"
+                    Style="{DynamicResource MaterialDesignFlatAccentButton}"
+                    Click="ResetButton_Click"
+                    ToolTip="Reset loop to full track">
+                <materialDesign:PackIcon Kind="BackupRestore" />
+            </Button>
+
+            <CheckBox Grid.Column="4"
+                      x:Name="LoopPreviewCheckBox"
+                      VerticalAlignment="Center"
+                      IsChecked="True"
+                      Content="Loop" />
+
+            <TextBox Grid.Column="5"
+                     x:Name="StartTextBox"
+                     Margin="0,0,8,0"
+                     materialDesign:HintAssist.Hint="Start"
+                     Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                     LostFocus="LoopTextBox_LostFocus"
+                     KeyDown="LoopTextBox_KeyDown" />
+
+            <TextBox Grid.Column="6"
+                     x:Name="EndTextBox"
+                     materialDesign:HintAssist.Hint="End"
+                     Style="{StaticResource MaterialDesignFloatingHintTextBox}"
+                     LostFocus="LoopTextBox_LostFocus"
+                     KeyDown="LoopTextBox_KeyDown" />
+        </Grid>
+
+        <TextBlock Grid.Row="2"
+                   x:Name="StatusText"
+                   Margin="2,6,0,0"
+                   FontSize="12"
+                   Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+    </Grid>
+</UserControl>
