@@ -12,47 +12,42 @@ namespace BMPC.Audio
 
         public static AudioTransformResult ConvertForGameWav(string inputFilePath, string outputFilePath)
         {
+            string? tempPcmPath = null;
+
             try
             {
-                using (var reader = new AudioFileReader(inputFilePath))
+                tempPcmPath = Path.Combine(Path.GetTempPath(), $"bmpc-{Guid.NewGuid():N}.wav");
+
+                using var reader = new AudioFileReader(inputFilePath);
+
+                // resample to 44100Hz if necessary
+                var resampler = new WdlResamplingSampleProvider(reader, DesiredSampleRate);
+
+                if (reader.WaveFormat.SampleRate == DesiredSampleRate && reader.WaveFormat.Channels == 2)
                 {
-                    // resample to 44100Hz if necessary
-                    var resampler = new WdlResamplingSampleProvider(reader, DesiredSampleRate);
+                    resampler = null; // skip resampling if already desired sample rate and stereo
+                }
 
-                    if (reader.WaveFormat.SampleRate == DesiredSampleRate && reader.WaveFormat.Channels == 2)
+                // convert to stereo if needed
+                ISampleProvider stereo = resampler == null ? reader : resampler.ToStereo();
+
+                var outFormat = new WaveFormat(DesiredSampleRate, 16, 2);
+                var waveProvider = new SampleToWaveProvider16(stereo);
+                using (var writer = new WaveFileWriter(tempPcmPath, outFormat))
+                {
+                    byte[] buffer = new byte[waveProvider.WaveFormat.AverageBytesPerSecond];
+                    int bytesRead;
+
+                    while ((bytesRead = waveProvider.Read(buffer, 0, buffer.Length)) > 0)
                     {
-                        resampler = null; // skip resampling if already desired sample rate and stereo
-                    }
-
-                    // convert to stereo if needed
-                    ISampleProvider stereo = resampler == null ? reader : resampler.ToStereo();
-
-                    var outFormat = new WaveFormat(DesiredSampleRate, 16, 2);
-                    using (var pcmStream = new MemoryStream())
-                    {
-                        var waveProvider = new SampleToWaveProvider16(stereo);
-                        using var writer = new WaveFileWriter(pcmStream, outFormat);
-                        byte[] buffer = new byte[waveProvider.WaveFormat.AverageBytesPerSecond];
-                        int bytesRead;
-
-                        while ((bytesRead = waveProvider.Read(buffer, 0, buffer.Length)) > 0)
-                        {
-                            writer.Write(buffer, 0, bytesRead);
-                        }
-
-                        writer.Flush();
-                        pcmStream.Position = 0;
-
-                        using (var pcmWaveStream = new WaveFileReader(pcmStream))
-                        {
-                            var adpcmFormat = new AdpcmWaveFormat(DesiredSampleRate, 2);
-                            using (var conversionStream = new WaveFormatConversionStream(adpcmFormat, pcmWaveStream))
-                            {
-                                WaveFileWriter.CreateWaveFile(outputFilePath, conversionStream);
-                            }
-                        }
+                        writer.Write(buffer, 0, bytesRead);
                     }
                 }
+
+                using var pcmWaveStream = new WaveFileReader(tempPcmPath);
+                var adpcmFormat = new AdpcmWaveFormat(DesiredSampleRate, 2);
+                using var conversionStream = new WaveFormatConversionStream(adpcmFormat, pcmWaveStream);
+                WaveFileWriter.CreateWaveFile(outputFilePath, conversionStream);
             }
             catch (Exception ex)
             {
@@ -61,6 +56,19 @@ namespace BMPC.Audio
                     IsSuccessful = false,
                     Exception = ex
                 };
+            }
+            finally
+            {
+                if (tempPcmPath != null && File.Exists(tempPcmPath))
+                {
+                    try
+                    {
+                        File.Delete(tempPcmPath);
+                    }
+                    catch
+                    {
+                    }
+                }
             }
 
             try
