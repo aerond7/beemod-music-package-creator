@@ -16,16 +16,26 @@ namespace BMPC.UserControls
     {
         private const int PeakCount = 900;
         private const double MinimumLoopSeconds = 0.05;
+        private const double HandleHitWidth = 18;
+        private const double HandleStrokeWidth = 4;
 
         private readonly DispatcherTimer playbackTimer;
         private float[] peaks = [];
         private string? filePath;
         private double durationSeconds;
+        private double playheadSeconds;
         private AudioLoopPoints? loopPoints;
         private AudioLoopPoints? sourceLoopPoints;
         private DragHandle dragHandle = DragHandle.None;
         private AudioFileReader? playbackReader;
         private WaveOutEvent? playbackOutput;
+        private Rectangle? loopRegion;
+        private Line? startHandleLine;
+        private Line? endHandleLine;
+        private Line? playheadLine;
+        private Polygon? startHandleThumb;
+        private Polygon? endHandleThumb;
+        private Polygon? playheadThumb;
         private bool isUpdatingText;
 
         public LoopPointsEditor()
@@ -58,11 +68,12 @@ namespace BMPC.UserControls
                 this.durationSeconds = info.DurationSeconds;
                 this.sourceLoopPoints = info.ExistingLoopPoints?.Clone();
                 this.loopPoints = NormalizeLoop(initialLoopPoints ?? this.sourceLoopPoints ?? CreateFullTrackLoop());
+                this.playheadSeconds = this.loopPoints.StartSeconds;
                 this.peaks = ReadPeaks(selectedFilePath);
                 EmptyText.Visibility = Visibility.Collapsed;
                 StatusText.Text = BuildStatusText(info);
                 UpdateTextBoxes();
-                DrawWaveform();
+                DrawEditor();
                 LoopPointsChanged?.Invoke(this.loopPoints.Clone());
             }
             catch (Exception ex)
@@ -76,14 +87,23 @@ namespace BMPC.UserControls
         {
             this.filePath = null;
             this.durationSeconds = 0;
+            this.playheadSeconds = 0;
             this.loopPoints = null;
             this.sourceLoopPoints = null;
             this.peaks = [];
+            this.loopRegion = null;
+            this.startHandleLine = null;
+            this.endHandleLine = null;
+            this.playheadLine = null;
+            this.startHandleThumb = null;
+            this.endHandleThumb = null;
+            this.playheadThumb = null;
             EmptyText.Visibility = Visibility.Visible;
             StatusText.Text = "";
             StartTextBox.Text = "";
             EndTextBox.Text = "";
             WaveCanvas.Children.Clear();
+            OverlayCanvas.Children.Clear();
             LoopPointsChanged?.Invoke(null);
         }
 
@@ -110,97 +130,213 @@ namespace BMPC.UserControls
             return result;
         }
 
-        private void DrawWaveform()
+        private void DrawEditor()
         {
             WaveCanvas.Children.Clear();
-            if (this.loopPoints is null || this.peaks.Length == 0 || WaveCanvas.ActualWidth <= 0 || WaveCanvas.ActualHeight <= 0)
+            OverlayCanvas.Children.Clear();
+            this.loopRegion = null;
+            this.startHandleLine = null;
+            this.endHandleLine = null;
+            this.playheadLine = null;
+            this.startHandleThumb = null;
+            this.endHandleThumb = null;
+            this.playheadThumb = null;
+
+            if (this.loopPoints is null || this.peaks.Length == 0 || OverlayCanvas.ActualWidth <= 0 || OverlayCanvas.ActualHeight <= 0)
             {
                 return;
             }
 
-            var width = WaveCanvas.ActualWidth;
-            var height = WaveCanvas.ActualHeight;
+            DrawWaveformPath();
+            CreateOverlayElements();
+            UpdateOverlayVisuals();
+        }
+
+        private void DrawWaveformPath()
+        {
+            var width = OverlayCanvas.ActualWidth;
+            var height = OverlayCanvas.ActualHeight;
             var middle = height / 2;
-            var selectedLeft = SecondsToX(this.loopPoints.StartSeconds);
-            var selectedRight = SecondsToX(this.loopPoints.EndSeconds);
+            var geometry = new StreamGeometry();
 
-            var selectedRegion = new Rectangle
+            using (var context = geometry.Open())
             {
-                Width = Math.Max(1, selectedRight - selectedLeft),
-                Height = height,
-                Fill = new SolidColorBrush(Color.FromArgb(38, 76, 175, 80))
-            };
-            Canvas.SetLeft(selectedRegion, selectedLeft);
-            Canvas.SetTop(selectedRegion, 0);
-            WaveCanvas.Children.Add(selectedRegion);
-
-            var waveformBrush = new SolidColorBrush(Color.FromRgb(96, 125, 139));
-            for (var i = 0; i < this.peaks.Length; i++)
-            {
-                var x = i * width / Math.Max(1, this.peaks.Length - 1);
-                var amplitude = Math.Max(1, this.peaks[i] * (height - 16) / 2);
-                WaveCanvas.Children.Add(new Line
+                for (var i = 0; i < this.peaks.Length; i++)
                 {
-                    X1 = x,
-                    X2 = x,
-                    Y1 = middle - amplitude,
-                    Y2 = middle + amplitude,
-                    Stroke = waveformBrush,
-                    StrokeThickness = 1
-                });
+                    var x = i * width / Math.Max(1, this.peaks.Length - 1);
+                    var amplitude = Math.Max(1, this.peaks[i] * (height - 16) / 2);
+                    context.BeginFigure(new Point(x, middle - amplitude), isFilled: false, isClosed: false);
+                    context.LineTo(new Point(x, middle + amplitude), isStroked: true, isSmoothJoin: false);
+                }
             }
 
-            AddHandle(selectedLeft, Colors.LimeGreen);
-            AddHandle(selectedRight, Colors.OrangeRed);
-        }
-
-        private void AddHandle(double x, Color color)
-        {
-            var handle = new Line
+            geometry.Freeze();
+            WaveCanvas.Children.Add(new System.Windows.Shapes.Path
             {
-                X1 = x,
-                X2 = x,
-                Y1 = 0,
-                Y2 = WaveCanvas.ActualHeight,
-                Stroke = new SolidColorBrush(color),
-                StrokeThickness = 3
-            };
-            WaveCanvas.Children.Add(handle);
+                Data = geometry,
+                Stroke = new SolidColorBrush(Color.FromRgb(96, 125, 139)),
+                StrokeThickness = 1,
+                SnapsToDevicePixels = true
+            });
         }
 
-        private void WaveCanvas_MouseDown(object sender, MouseButtonEventArgs e)
+        private void CreateOverlayElements()
+        {
+            this.loopRegion = new Rectangle
+            {
+                Fill = new SolidColorBrush(Color.FromArgb(46, 76, 175, 80)),
+                IsHitTestVisible = false
+            };
+            OverlayCanvas.Children.Add(this.loopRegion);
+
+            this.startHandleLine = CreateHandleLine(Colors.LimeGreen, "Loop start");
+            this.endHandleLine = CreateHandleLine(Colors.OrangeRed, "Loop end");
+            this.playheadLine = CreateHandleLine(Color.FromRgb(255, 193, 7), "Playhead");
+            this.playheadLine.StrokeThickness = 2;
+
+            this.startHandleThumb = CreateThumb(Colors.LimeGreen, "Loop start");
+            this.endHandleThumb = CreateThumb(Colors.OrangeRed, "Loop end");
+            this.playheadThumb = CreateThumb(Color.FromRgb(255, 193, 7), "Playhead");
+
+            OverlayCanvas.Children.Add(this.startHandleLine);
+            OverlayCanvas.Children.Add(this.endHandleLine);
+            OverlayCanvas.Children.Add(this.playheadLine);
+            OverlayCanvas.Children.Add(this.startHandleThumb);
+            OverlayCanvas.Children.Add(this.endHandleThumb);
+            OverlayCanvas.Children.Add(this.playheadThumb);
+        }
+
+        private static Line CreateHandleLine(Color color, string tooltip)
+            => new()
+            {
+                Stroke = new SolidColorBrush(color),
+                StrokeThickness = HandleStrokeWidth,
+                IsHitTestVisible = false,
+                SnapsToDevicePixels = true,
+                ToolTip = tooltip
+            };
+
+        private static Polygon CreateThumb(Color color, string tooltip)
+            => new()
+            {
+                Fill = new SolidColorBrush(color),
+                Stroke = Brushes.White,
+                StrokeThickness = 1,
+                IsHitTestVisible = false,
+                ToolTip = tooltip
+            };
+
+        private void UpdateOverlayVisuals()
         {
             if (this.loopPoints is null)
             {
                 return;
             }
 
-            var x = e.GetPosition(WaveCanvas).X;
-            var startX = SecondsToX(this.loopPoints.StartSeconds);
-            var endX = SecondsToX(this.loopPoints.EndSeconds);
-            this.dragHandle = Math.Abs(x - startX) <= Math.Abs(x - endX) ? DragHandle.Start : DragHandle.End;
-            WaveCanvas.CaptureMouse();
-            ApplyDrag(x);
+            if (this.loopRegion is null ||
+                this.startHandleLine is null ||
+                this.endHandleLine is null ||
+                this.playheadLine is null ||
+                this.startHandleThumb is null ||
+                this.endHandleThumb is null ||
+                this.playheadThumb is null)
+            {
+                DrawEditor();
+                return;
+            }
+
+            var height = OverlayCanvas.ActualHeight;
+            var selectedLeft = SecondsToX(this.loopPoints.StartSeconds);
+            var selectedRight = SecondsToX(this.loopPoints.EndSeconds);
+            var playheadX = SecondsToX(this.playheadSeconds);
+
+            this.loopRegion.Width = Math.Max(1, selectedRight - selectedLeft);
+            this.loopRegion.Height = height;
+            Canvas.SetLeft(this.loopRegion, selectedLeft);
+            Canvas.SetTop(this.loopRegion, 0);
+
+            SetLine(this.startHandleLine, selectedLeft, height);
+            SetLine(this.endHandleLine, selectedRight, height);
+            SetLine(this.playheadLine, playheadX, height);
+
+            SetThumb(this.startHandleThumb, selectedLeft, height, ThumbPlacement.Top);
+            SetThumb(this.endHandleThumb, selectedRight, height, ThumbPlacement.Bottom);
+            SetThumb(this.playheadThumb, playheadX, height, ThumbPlacement.Top);
         }
 
-        private void WaveCanvas_MouseMove(object sender, MouseEventArgs e)
+        private static void SetLine(Line line, double x, double height)
         {
-            if (this.dragHandle == DragHandle.None)
+            line.X1 = x;
+            line.X2 = x;
+            line.Y1 = 0;
+            line.Y2 = height;
+        }
+
+        private static void SetThumb(Polygon thumb, double x, double height, ThumbPlacement placement)
+        {
+            thumb.Points = placement == ThumbPlacement.Top
+                ? new PointCollection
+                {
+                    new Point(x - 7, 0),
+                    new Point(x + 7, 0),
+                    new Point(x, 11)
+                }
+                : new PointCollection
+                {
+                    new Point(x - 7, height),
+                    new Point(x + 7, height),
+                    new Point(x, height - 11)
+                };
+        }
+
+        private void OverlayCanvas_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (this.loopPoints is null)
             {
                 return;
             }
 
-            ApplyDrag(e.GetPosition(WaveCanvas).X);
+            var x = e.GetPosition(OverlayCanvas).X;
+            this.dragHandle = GetDragHandle(x);
+            OverlayCanvas.CaptureMouse();
+            ApplyDrag(x);
         }
 
-        private void WaveCanvas_MouseUp(object sender, MouseButtonEventArgs e)
+        private void OverlayCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (this.loopPoints is null)
+            {
+                return;
+            }
+
+            var x = e.GetPosition(OverlayCanvas).X;
+            if (this.dragHandle == DragHandle.None)
+            {
+                OverlayCanvas.Cursor = GetDragHandle(x) is DragHandle.Start or DragHandle.End
+                    ? Cursors.SizeWE
+                    : Cursors.Hand;
+                return;
+            }
+
+            ApplyDrag(x);
+        }
+
+        private void OverlayCanvas_MouseLeave(object sender, MouseEventArgs e)
+        {
+            if (this.dragHandle == DragHandle.None)
+            {
+                OverlayCanvas.Cursor = Cursors.Arrow;
+            }
+        }
+
+        private void OverlayCanvas_MouseUp(object sender, MouseButtonEventArgs e)
         {
             this.dragHandle = DragHandle.None;
-            WaveCanvas.ReleaseMouseCapture();
+            OverlayCanvas.ReleaseMouseCapture();
         }
 
-        private void WaveCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
-            => DrawWaveform();
+        private void OverlayCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+            => DrawEditor();
 
         private void ApplyDrag(double x)
         {
@@ -218,11 +354,44 @@ namespace BMPC.UserControls
             {
                 this.loopPoints.EndSeconds = Math.Max(seconds, this.loopPoints.StartSeconds + MinimumLoopSeconds);
             }
+            else if (this.dragHandle == DragHandle.Playhead)
+            {
+                SeekPlayback(seconds);
+                return;
+            }
 
             this.loopPoints = NormalizeLoop(this.loopPoints);
             UpdateTextBoxes();
-            DrawWaveform();
+            UpdateOverlayVisuals();
             LoopPointsChanged?.Invoke(this.loopPoints.Clone());
+        }
+
+        private DragHandle GetDragHandle(double x)
+        {
+            if (this.loopPoints is null)
+            {
+                return DragHandle.None;
+            }
+
+            var startDistance = Math.Abs(x - SecondsToX(this.loopPoints.StartSeconds));
+            var endDistance = Math.Abs(x - SecondsToX(this.loopPoints.EndSeconds));
+            var playheadDistance = Math.Abs(x - SecondsToX(this.playheadSeconds));
+            var nearestDistance = Math.Min(startDistance, Math.Min(endDistance, playheadDistance));
+
+            if (nearestDistance <= HandleHitWidth)
+            {
+                if (nearestDistance == startDistance)
+                {
+                    return DragHandle.Start;
+                }
+
+                if (nearestDistance == endDistance)
+                {
+                    return DragHandle.End;
+                }
+            }
+
+            return DragHandle.Playhead;
         }
 
         private void LoopTextBox_LostFocus(object sender, RoutedEventArgs e)
@@ -253,8 +422,9 @@ namespace BMPC.UserControls
             this.loopPoints.StartSeconds = start;
             this.loopPoints.EndSeconds = end;
             this.loopPoints = NormalizeLoop(this.loopPoints);
+            this.playheadSeconds = Clamp(this.playheadSeconds, 0, this.durationSeconds);
             UpdateTextBoxes();
-            DrawWaveform();
+            UpdateOverlayVisuals();
             LoopPointsChanged?.Invoke(this.loopPoints.Clone());
         }
 
@@ -293,8 +463,9 @@ namespace BMPC.UserControls
         private void ResetLoop(AudioLoopPoints points)
         {
             this.loopPoints = NormalizeLoop(points);
+            SeekPlayback(this.loopPoints.StartSeconds);
             UpdateTextBoxes();
-            DrawWaveform();
+            UpdateOverlayVisuals();
             LoopPointsChanged?.Invoke(this.loopPoints.Clone());
         }
 
@@ -308,12 +479,13 @@ namespace BMPC.UserControls
             StopPlayback();
             this.playbackReader = new AudioFileReader(this.filePath)
             {
-                CurrentTime = TimeSpan.FromSeconds(this.loopPoints.StartSeconds)
+                CurrentTime = TimeSpan.FromSeconds(Clamp(this.playheadSeconds, 0, this.durationSeconds))
             };
             this.playbackOutput = new WaveOutEvent();
             this.playbackOutput.Init(this.playbackReader);
             this.playbackOutput.Play();
             this.playbackTimer.Start();
+            UpdateOverlayVisuals();
         }
 
         private void StopPlayback()
@@ -326,6 +498,17 @@ namespace BMPC.UserControls
             this.playbackReader = null;
         }
 
+        private void SeekPlayback(double seconds)
+        {
+            this.playheadSeconds = Clamp(seconds, 0, this.durationSeconds);
+            if (this.playbackReader is not null)
+            {
+                this.playbackReader.CurrentTime = TimeSpan.FromSeconds(this.playheadSeconds);
+            }
+
+            UpdateOverlayVisuals();
+        }
+
         private void PlaybackTimer_Tick(object? sender, EventArgs e)
         {
             if (this.playbackReader is null || this.loopPoints is null)
@@ -334,14 +517,17 @@ namespace BMPC.UserControls
                 return;
             }
 
-            if (this.playbackReader.CurrentTime.TotalSeconds < this.loopPoints.EndSeconds)
+            this.playheadSeconds = Clamp(this.playbackReader.CurrentTime.TotalSeconds, 0, this.durationSeconds);
+            UpdateOverlayVisuals();
+
+            if (this.playheadSeconds < this.loopPoints.EndSeconds)
             {
                 return;
             }
 
             if (LoopPreviewCheckBox.IsChecked == true)
             {
-                this.playbackReader.CurrentTime = TimeSpan.FromSeconds(this.loopPoints.StartSeconds);
+                SeekPlayback(this.loopPoints.StartSeconds);
                 return;
             }
 
@@ -397,17 +583,17 @@ namespace BMPC.UserControls
                 return 0;
             }
 
-            return seconds / this.durationSeconds * WaveCanvas.ActualWidth;
+            return seconds / this.durationSeconds * OverlayCanvas.ActualWidth;
         }
 
         private double XToSeconds(double x)
         {
-            if (WaveCanvas.ActualWidth <= 0)
+            if (OverlayCanvas.ActualWidth <= 0)
             {
                 return 0;
             }
 
-            return Clamp(x / WaveCanvas.ActualWidth * this.durationSeconds, 0, this.durationSeconds);
+            return Clamp(x / OverlayCanvas.ActualWidth * this.durationSeconds, 0, this.durationSeconds);
         }
 
         private static bool TryParseSeconds(string value, out double seconds)
@@ -430,7 +616,14 @@ namespace BMPC.UserControls
         {
             None,
             Start,
-            End
+            End,
+            Playhead
+        }
+
+        private enum ThumbPlacement
+        {
+            Top,
+            Bottom
         }
     }
 }

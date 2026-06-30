@@ -24,11 +24,15 @@
             <Grid>
                 <Canvas x:Name="WaveCanvas"
                         ClipToBounds="True"
+                        IsHitTestVisible="False" />
+                <Canvas x:Name="OverlayCanvas"
+                        ClipToBounds="True"
                         Background="Transparent"
-                        MouseDown="WaveCanvas_MouseDown"
-                        MouseMove="WaveCanvas_MouseMove"
-                        MouseUp="WaveCanvas_MouseUp"
-                        SizeChanged="WaveCanvas_SizeChanged" />
+                        MouseDown="OverlayCanvas_MouseDown"
+                        MouseMove="OverlayCanvas_MouseMove"
+                        MouseLeave="OverlayCanvas_MouseLeave"
+                        MouseUp="OverlayCanvas_MouseUp"
+                        SizeChanged="OverlayCanvas_SizeChanged" />
                 <TextBlock x:Name="EmptyText"
                            Text="Select audio"
                            HorizontalAlignment="Center"
@@ -98,7 +102,8 @@
                       x:Name="LoopPreviewCheckBox"
                       VerticalAlignment="Center"
                       IsChecked="True"
-                      Content="Loop" />
+                      Content="Loop"
+                      ToolTip="Wrap playback from loop end to loop start" />
 
             <TextBox Grid.Column="5"
                      x:Name="StartTextBox"
