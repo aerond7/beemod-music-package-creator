@@ -1,13 +1,13 @@
 // This package was generated using BMPC v1.3.0
 // See more information about BMPC at https://bmpc.aerond.dev/
 
-"ID"	"BMPC_TESTPACKAGEONE_PACK"
+"ID"	"bmpc_testpackageone"
 "Name"	"Test Package, One"
 "Desc"	"Desc with \"quote\" and snow \u2603"
 
 "Music"
 {
-"ID"	"BMPC_BASESONG_MUSIC"
+"ID"	"bmpc_testpackageone_basesong_music"
 "Name"	"Base Song"
 "ShortName"	"Base"
 "Group"	"Puzzle Group"
@@ -39,7 +39,7 @@
 
 "Music"
 {
-"ID"	"BMPC_DEFAULTFUNNEL_MUSIC"
+"ID"	"bmpc_testpackageone_defaultfunnel_music"
 "Name"	"Default Funnel"
 "Group"	"Puzzle Group"
 "Icon"	"icons/default.png"

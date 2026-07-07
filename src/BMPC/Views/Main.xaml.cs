@@ -6,7 +6,6 @@ using System.Diagnostics;
 using BMPC.Services;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 
 namespace BMPC.Views
@@ -15,8 +14,7 @@ namespace BMPC.Views
     {
         private MainViewModel ViewModel { get; set; }
 
-        private string? sortProperty;
-        private ListSortDirection sortDirection;
+        private bool sortDescending;
 
         public Main(MainViewModel viewModel)
         {
@@ -57,36 +55,24 @@ namespace BMPC.Views
             }
         }
 
-        private void LvPackages_ColumnHeaderClick(object sender, RoutedEventArgs e)
+        private void Sort_Changed(object sender, RoutedEventArgs e) => ApplySort();
+
+        private void SortDir_Click(object sender, RoutedEventArgs e)
         {
-            if (e.OriginalSource is not GridViewColumnHeader header || header.Column is null)
+            this.sortDescending = !this.sortDescending;
+            IconSortDir.Kind = this.sortDescending
+                ? MaterialDesignThemes.Wpf.PackIconKind.SortDescending
+                : MaterialDesignThemes.Wpf.PackIconKind.SortAscending;
+            ApplySort();
+        }
+
+        private void ApplySort()
+        {
+            // Controls are created during InitializeComponent; guard against early events.
+            if (CmbSort is null || LvPackages?.ItemsSource is null)
             {
                 return;
             }
-
-            string? property = null;
-            if (ReferenceEquals(header.Column, ColName))
-            {
-                property = nameof(MusicPackageItem.Name);
-            }
-            else if (ReferenceEquals(header.Column, ColSongs))
-            {
-                property = nameof(MusicPackageItem.SongCountValue);
-            }
-            else if (ReferenceEquals(header.Column, ColAdded))
-            {
-                property = nameof(MusicPackageItem.AddedValue);
-            }
-
-            if (property is null)
-            {
-                return;
-            }
-
-            this.sortDirection = this.sortProperty == property && this.sortDirection == ListSortDirection.Ascending
-                ? ListSortDirection.Descending
-                : ListSortDirection.Ascending;
-            this.sortProperty = property;
 
             var view = CollectionViewSource.GetDefaultView(LvPackages.ItemsSource);
             if (view is null)
@@ -94,48 +80,20 @@ namespace BMPC.Views
                 return;
             }
 
+            var property = CmbSort.SelectedIndex switch
+            {
+                1 => nameof(MusicPackageItem.SongCountValue),
+                2 => nameof(MusicPackageItem.AddedValue),
+                _ => nameof(MusicPackageItem.Name)
+            };
+
+            var direction = this.sortDescending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+
             view.SortDescriptions.Clear();
-            view.SortDescriptions.Add(new SortDescription(property, this.sortDirection));
+            view.SortDescriptions.Add(new SortDescription(property, direction));
             view.Refresh();
-
-            UpdateSortIndicators(header.Column);
-        }
-
-        private void UpdateSortIndicators(GridViewColumn sortedColumn)
-        {
-            var arrow = this.sortDirection == ListSortDirection.Ascending ? "  ▲" : "  ▼";
-            ColName.Header = "Name" + (ReferenceEquals(sortedColumn, ColName) ? arrow : string.Empty);
-            ColSongs.Header = "Songs in package" + (ReferenceEquals(sortedColumn, ColSongs) ? arrow : string.Empty);
-            ColAdded.Header = "Added" + (ReferenceEquals(sortedColumn, ColAdded) ? arrow : string.Empty);
-        }
-
-        private void Window_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            var src = e.OriginalSource as System.Windows.DependencyObject;
-
-            // ListView handles its own selection; buttons act on the current selection.
-            if (FindAncestor<ListView>(src) != null || FindAncestor<Button>(src) != null)
-            {
-                return;
-            }
-
-            LvPackages.SelectedItem = null;
-        }
-
-        private static T? FindAncestor<T>(System.Windows.DependencyObject? current) where T : System.Windows.DependencyObject
-        {
-            while (current != null)
-            {
-                if (current is T match)
-                {
-                    return match;
-                }
-
-                current = System.Windows.Media.VisualTreeHelper.GetParent(current)
-                          ?? System.Windows.LogicalTreeHelper.GetParent(current);
-            }
-
-            return null;
         }
 
         private void LvPackages_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)

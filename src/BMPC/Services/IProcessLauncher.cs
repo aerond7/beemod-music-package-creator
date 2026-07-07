@@ -7,5 +7,7 @@ namespace BMPC.Services
         bool TryLaunch(string fileName);
 
         bool RevealInFileExplorer(string path);
+
+        bool OpenFolder(string path);
     }
 }

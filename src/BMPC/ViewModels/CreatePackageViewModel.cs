@@ -267,8 +267,11 @@ namespace BMPC.ViewModels
 
                 try
                 {
+                    // Approve the close first: setting DialogResult triggers OnClosing,
+                    // which must not prompt for a user-initiated cancel.
+                    AllowClose = true;
                     RequestUpdateDialogResult?.Invoke(true);
-                    CloseWindow();
+                    RequestClose?.Invoke();
                 }
                 catch { }
             }

@@ -29,6 +29,9 @@ namespace BMPC.ViewModels
         public ICommand EditPackageCommand { get; set; }
         public ICommand DeletePackageCommand { get; set; }
         public ICommand OpenPackageLocationCommand { get; set; }
+        public ICommand OpenBeemodCommand { get; set; }
+        public ICommand RefreshCommand { get; set; }
+        public ICommand OpenPackagesFolderCommand { get; set; }
 
         public MainViewModel(
             IAbstractFactory<CreatePackageView> packageViewFactory,
@@ -46,6 +49,9 @@ namespace BMPC.ViewModels
             this.EditPackageCommand = new RelayCommand(EditPackage, IsPackageSelected);
             this.DeletePackageCommand = new RelayCommand(DeletePackage, IsPackageSelected);
             this.OpenPackageLocationCommand = new RelayCommand(OpenPackageLocation, IsPackageSelected);
+            this.OpenBeemodCommand = new RelayCommand(_ => LaunchBee());
+            this.RefreshCommand = new RelayCommand(_ => ReloadPackages());
+            this.OpenPackagesFolderCommand = new RelayCommand(_ => OpenPackagesFolder());
 
             Packages.CollectionChanged += Packages_CollectionChanged;
             ReloadPackages();
@@ -59,6 +65,22 @@ namespace BMPC.ViewModels
         }
 
         private static bool IsPackageSelected(object? obj) => obj is MusicPackageItem;
+
+        private void OpenPackagesFolder()
+        {
+            try
+            {
+                var path = Path.GetFullPath(this.appPaths.BeePackagesDirectory);
+                if (!this.processLauncher.OpenFolder(path))
+                {
+                    this.messageDialogService.ShowWarning("The packages folder could not be found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
+        }
 
         private void OpenPackageLocation(object? obj)
         {

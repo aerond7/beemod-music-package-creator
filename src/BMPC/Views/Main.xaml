@@ -12,10 +12,15 @@
         Title="BEEmod Music Package Creator"
         Width="1200"
         Height="700"
+        MinWidth="940"
+        MinHeight="560"
         WindowStartupLocation="CenterScreen"
-        ResizeMode="CanMinimize"
-        PreviewMouseDown="Window_PreviewMouseDown"
+        ResizeMode="CanResize"
         Background="{DynamicResource MaterialDesign.Brush.Background}">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    </Window.Resources>
 
     <Window.InputBindings>
         <KeyBinding Modifiers="Control"
@@ -69,6 +74,29 @@
                             VerticalAlignment="Center"
                             HorizontalAlignment="Right"
                             Margin="0,0,0,0">
+                    <!-- Quick actions -->
+                    <Button Style="{DynamicResource MaterialDesignIconButton}"
+                            Command="{Binding RefreshCommand}"
+                            ToolTip="Refresh list"
+                            Width="36" Height="36"
+                            Margin="0,0,2,0">
+                        <materialDesign:PackIcon Kind="Refresh" />
+                    </Button>
+                    <Button Style="{DynamicResource MaterialDesignIconButton}"
+                            Command="{Binding OpenPackagesFolderCommand}"
+                            ToolTip="Open packages folder"
+                            Width="36" Height="36"
+                            Margin="0,0,2,0">
+                        <materialDesign:PackIcon Kind="FolderOutline" />
+                    </Button>
+                    <Button Style="{DynamicResource MaterialDesignIconButton}"
+                            Command="{Binding OpenBeemodCommand}"
+                            ToolTip="Open BEEmod"
+                            Width="36" Height="36"
+                            Margin="0,0,10,0">
+                        <materialDesign:PackIcon Kind="RocketLaunchOutline" />
+                    </Button>
+
                     <Button Style="{DynamicResource MaterialDesignFlatAccentButton}"
                             Click="GitHubButton_Click"
                             Margin="0,0,8,0"
@@ -109,109 +137,130 @@
         <Grid Grid.Row="1" Margin="24,16,24,16">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="360" />
             </Grid.ColumnDefinitions>
 
-            <!-- Card containing the packages list and actions -->
-            <Border Background="{DynamicResource MaterialDesign.Brush.Card.Background}"
+            <!-- LEFT: packages list card -->
+            <Border Grid.Column="0"
+                    Background="{DynamicResource MaterialDesign.Brush.Card.Background}"
                     BorderBrush="{DynamicResource MaterialDesign.Brush.Separator.Background}"
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="16">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <!-- Header row with title, total counter, actions -->
                         <RowDefinition Height="Auto" />
-                        <!-- Divider -->
                         <RowDefinition Height="Auto" />
-                        <!-- Packages list -->
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
-                    <!-- HEADER TOOLBAR -->
+                    <!-- HEADER TOOLBAR (two rows to avoid cramping / clipping) -->
                     <Grid Grid.Row="0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-                        <!-- Title and count -->
-                        <StackPanel Grid.Column="0"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,8,0">
-                            <TextBlock Text="Packages"
-                                       FontSize="18"
-                                       FontWeight="Bold"
-                                       Foreground="{DynamicResource MaterialDesign.Brush.Primary}" />
-                            <TextBlock Text="{Binding TotalPackages, StringFormat={}({0})}"
-                                       FontSize="18"
-                                       FontWeight="Bold"
-                                       Margin="8,0,0,0" />
-                        </StackPanel>
+                        <!-- Row A: title + actions -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                        <!-- Search / filter -->
-                        <TextBox Grid.Column="1"
-                                 Name="TxtSearch"
-                                 VerticalAlignment="Center"
-                                 Margin="8,0,8,0"
-                                 MinWidth="180"
-                                 TextChanged="TxtSearch_TextChanged"
-                                 materialDesign:HintAssist.Hint="Search packages..."
-                                 materialDesign:TextFieldAssist.HasClearButton="True"
-                                 Style="{DynamicResource MaterialDesignTextBox}" />
+                            <StackPanel Grid.Column="0"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Packages"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource MaterialDesign.Brush.Primary}" />
+                                <TextBlock Text="{Binding TotalPackages, StringFormat={}({0})}"
+                                           FontSize="18"
+                                           FontWeight="Bold"
+                                           Margin="8,0,0,0" />
+                            </StackPanel>
 
-                        <!-- Row actions -->
-                        <StackPanel Grid.Column="2"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center"
-                                    HorizontalAlignment="Right">
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Right">
+                                <Button Name="BtnPackageRemove"
+                                        Style="{DynamicResource MaterialDesignIconButton}"
+                                        Command="{Binding DeletePackageCommand}"
+                                        CommandParameter="{Binding ElementName=LvPackages,Path=SelectedItem}"
+                                        ToolTip="Remove selected package"
+                                        Width="36" Height="36"
+                                        Margin="0,0,4,0"
+                                        Foreground="{DynamicResource MaterialDesign.Brush.ValidationError}">
+                                    <materialDesign:PackIcon Kind="TrashCan" />
+                                </Button>
 
-                            <!-- Remove button bound to LV selection -->
-                            <Button Name="BtnPackageRemove"
-                                    Style="{DynamicResource MaterialDesignFlatDarkBgButton}"
-                                    Command="{Binding DeletePackageCommand}"
-                                    CommandParameter="{Binding ElementName=LvPackages,Path=SelectedItem}"
-                                    Padding="10,4"
-                                    Margin="0,0,8,0"
-                                    Background="{DynamicResource MaterialDesign.Brush.ValidationError}"
-                                    BorderBrush="{DynamicResource MaterialDesign.Brush.ValidationError}"
-                                    Foreground="White">
-                                <StackPanel Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <materialDesign:PackIcon Margin="0,0,6,0"
-                                                             Kind="TrashCan" />
-                                    <TextBlock Text="Remove" />
-                                </StackPanel>
-                            </Button>
+                                <Button Name="BtnPackageEdit"
+                                        Style="{DynamicResource MaterialDesignIconButton}"
+                                        Command="{Binding EditPackageCommand}"
+                                        CommandParameter="{Binding ElementName=LvPackages,Path=SelectedItem}"
+                                        ToolTip="Edit selected package"
+                                        Width="36" Height="36"
+                                        Margin="0,0,10,0">
+                                    <materialDesign:PackIcon Kind="Pencil" />
+                                </Button>
 
-                            <!-- Edit button bound to LV selection -->
-                            <Button Name="BtnPackageEdit"
-                                    Style="{DynamicResource MaterialDesignFlatDarkBgButton}"
-                                    Command="{Binding EditPackageCommand}"
-                                    CommandParameter="{Binding ElementName=LvPackages,Path=SelectedItem}"
-                                    Padding="10,4"
-                                    Margin="0,0,8,0">
-                                <StackPanel Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <materialDesign:PackIcon Margin="0,0,6,0"
-                                                             Kind="Pencil" />
-                                    <TextBlock Text="Edit" />
-                                </StackPanel>
-                            </Button>
+                                <Button Style="{DynamicResource MaterialDesignFlatDarkBgButton}"
+                                        Command="{Binding CreateNewPackageCommand}"
+                                        Padding="10,4">
+                                    <StackPanel Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <materialDesign:PackIcon Margin="0,0,6,0"
+                                                                 Kind="PlusBold" />
+                                        <TextBlock Text="New package" />
+                                    </StackPanel>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
 
-                            <!-- Create button is primary action -->
-                            <Button Style="{DynamicResource MaterialDesignFlatDarkBgButton}"
-                                    Command="{Binding CreateNewPackageCommand}"
-                                    Padding="10,4">
-                                <StackPanel Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <materialDesign:PackIcon Margin="0,0,6,0"
-                                                             Kind="PlusBold" />
-                                    <TextBlock Text="New package" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
+                        <!-- Row B: search + sort -->
+                        <Grid Grid.Row="1" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0"
+                                     Name="TxtSearch"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,12,0"
+                                     TextChanged="TxtSearch_TextChanged"
+                                     materialDesign:HintAssist.Hint="Search packages..."
+                                     materialDesign:TextFieldAssist.HasClearButton="True"
+                                     Style="{DynamicResource MaterialDesignTextBox}" />
+
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Sort:"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"
+                                           Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                                <ComboBox Name="CmbSort"
+                                          Width="110"
+                                          SelectedIndex="0"
+                                          VerticalAlignment="Center"
+                                          SelectionChanged="Sort_Changed">
+                                    <ComboBoxItem Content="Name" />
+                                    <ComboBoxItem Content="Songs" />
+                                    <ComboBoxItem Content="Date added" />
+                                </ComboBox>
+                                <Button Name="BtnSortDir"
+                                        Style="{DynamicResource MaterialDesignIconButton}"
+                                        Width="32" Height="32"
+                                        Margin="4,0,0,0"
+                                        ToolTip="Toggle ascending / descending"
+                                        Click="SortDir_Click">
+                                    <materialDesign:PackIcon Name="IconSortDir" Kind="SortAscending" />
+                                </Button>
+                            </StackPanel>
+                        </Grid>
                     </Grid>
 
                     <!-- Divider -->
@@ -224,9 +273,10 @@
                         <ListView Name="LvPackages"
                                   ItemsSource="{Binding Packages}"
                                   SelectionMode="Single"
+                                  HorizontalContentAlignment="Stretch"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                   PreviewMouseDown="LvPackages_PreviewMouseDown"
                                   MouseDoubleClick="LvPackages_MouseDoubleClick"
-                                  GridViewColumnHeader.Click="LvPackages_ColumnHeaderClick"
                                   BorderThickness="0">
                             <ListView.InputBindings>
                                 <KeyBinding Key="Return"
@@ -272,46 +322,67 @@
                                     </MenuItem>
                                 </ContextMenu>
                             </ListView.ContextMenu>
-                            <ListView.View>
-                                <GridView AllowsColumnReorder="False">
-                                    <GridView.ColumnHeaderContainerStyle>
-                                        <Style TargetType="GridViewColumnHeader"
-                                               BasedOn="{StaticResource {x:Type GridViewColumnHeader}}">
-                                            <Setter Property="HorizontalContentAlignment" Value="Left" />
-                                            <Setter Property="Padding" Value="6,4,0,10" />
-                                        </Style>
-                                    </GridView.ColumnHeaderContainerStyle>
-                                    <GridViewColumn x:Name="ColName"
-                                                    Header="Name"
-                                                    Width="500">
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Name}"
-                                                           ToolTip="{Binding Description}" />
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                    <GridViewColumn x:Name="ColSongs"
-                                                    Header="Songs in package"
-                                                    DisplayMemberBinding="{Binding SongCount}"
-                                                    Width="200"/>
-                                    <GridViewColumn x:Name="ColAdded"
-                                                    Header="Added"
-                                                    DisplayMemberBinding="{Binding Added}"
-                                                    Width="300"/>
-                                </GridView>
-                            </ListView.View>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem"
+                                       BasedOn="{StaticResource MaterialDesignListBoxItem}">
+                                    <Setter Property="Background" Value="#14808080" />
+                                    <Setter Property="Margin" Value="0,0,0,4" />
+                                    <Setter Property="Padding" Value="10,8" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Description}"
+                                                       FontSize="12"
+                                                       Margin="0,2,0,0"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}"
+                                                       Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <materialDesign:PackIcon Kind="ClockOutline"
+                                                                         Width="13" Height="13"
+                                                                         VerticalAlignment="Center"
+                                                                         Margin="0,0,4,0"
+                                                                         Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                                                <TextBlock Text="{Binding Added}"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Margin="8,0,0,0"
+                                                Padding="8,2"
+                                                CornerRadius="10"
+                                                Background="{DynamicResource MaterialDesign.Brush.Primary}">
+                                            <TextBlock Text="{Binding SongCount}"
+                                                       FontSize="11"
+                                                       Foreground="White" />
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
                         </ListView>
 
                         <!-- Empty state -->
-                        <TextBlock Text="No packages yet - click &quot;New package&quot; to create one."
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   IsHitTestVisible="False"
-                                   FontSize="14"
-                                   Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
+                        <StackPanel HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding TotalPackages}" Value="0">
@@ -319,8 +390,219 @@
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                            </StackPanel.Style>
+                            <materialDesign:PackIcon Kind="MusicBoxMultipleOutline"
+                                                     Width="64" Height="64"
+                                                     HorizontalAlignment="Center"
+                                                     Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                            <TextBlock Text="No packages yet"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,12,0,4" />
+                            <TextBlock Text="Create your first music package."
+                                       FontSize="12"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                            <Button Command="{Binding CreateNewPackageCommand}"
+                                    Margin="0,16,0,0"
+                                    Padding="12,6"
+                                    HorizontalAlignment="Center"
+                                    Style="{DynamicResource MaterialDesignFlatDarkBgButton}">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <materialDesign:PackIcon Margin="0,0,6,0" Kind="PlusBold" />
+                                    <TextBlock Text="New package" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- RIGHT: package detail card -->
+            <Border Grid.Column="1"
+                    Margin="16,0,0,0"
+                    Background="{DynamicResource MaterialDesign.Brush.Card.Background}"
+                    BorderBrush="{DynamicResource MaterialDesign.Brush.Separator.Background}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="16">
+                <Grid DataContext="{Binding SelectedItem, ElementName=LvPackages}">
+
+                    <!-- Placeholder when nothing selected -->
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <materialDesign:PackIcon Kind="InformationOutline"
+                                                 Width="40" Height="40"
+                                                 HorizontalAlignment="Center"
+                                                 Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                        <TextBlock Text="Select a package to see its details."
+                                   Margin="0,10,0,0"
+                                   FontSize="13"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                    </StackPanel>
+
+                    <!-- Details when a package is selected -->
+                    <Grid>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <!-- Title -->
+                        <TextBlock Grid.Row="0"
+                                   Text="{Binding Name}"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MaterialDesign.Brush.Primary}" />
+
+                        <!-- Description -->
+                        <TextBlock Grid.Row="1"
+                                   Text="{Binding Description}"
+                                   Margin="0,8,0,0"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   Visibility="{Binding HasDescription, Converter={StaticResource BoolToVis}}" />
+
+                        <!-- Meta -->
+                        <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon Kind="MusicNote"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,6,0"
+                                                         Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                                <TextBlock Text="{Binding SongCount}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,6,0,0"
+                                        Visibility="{Binding HasGroup, Converter={StaticResource BoolToVis}}">
+                                <materialDesign:PackIcon Kind="FolderMusicOutline"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,6,0"
+                                                         Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                                <TextBlock Text="{Binding Group}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <materialDesign:PackIcon Kind="ClockOutline"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,6,0"
+                                                         Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
+                                <TextBlock Text="{Binding Added}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Songs header -->
+                        <StackPanel Grid.Row="3" Margin="0,16,0,8">
+                            <Separator Background="{DynamicResource MaterialDesign.Brush.Separator.Background}" />
+                            <TextBlock Text="Songs"
+                                       Margin="0,8,0,0"
+                                       FontSize="14"
+                                       FontWeight="Bold" />
+                        </StackPanel>
+
+                        <!-- Songs list -->
+                        <Grid Grid.Row="4">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          Visibility="{Binding HasSongDetail, Converter={StaticResource BoolToVis}}">
+                                <ItemsControl ItemsSource="{Binding Songs}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,6"
+                                                    Padding="10,8"
+                                                    CornerRadius="4"
+                                                    Background="{DynamicResource MaterialDesign.Brush.Card.Background}"
+                                                    BorderBrush="{DynamicResource MaterialDesign.Brush.Separator.Background}"
+                                                    BorderThickness="1">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontWeight="SemiBold"
+                                                               FontSize="13"
+                                                               TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Authors, StringFormat=by {0}}"
+                                                               FontSize="11"
+                                                               Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Authors}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <TextBlock Text="{Binding Description}"
+                                                               FontSize="12"
+                                                               Margin="0,4,0,0"
+                                                               TextWrapping="Wrap">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Description}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+
+                            <!-- No song detail (legacy packages) -->
+                            <TextBlock Text="No song details available for this package."
+                                       VerticalAlignment="Top"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"
+                                       Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSongDetail}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Grid>
                 </Grid>
             </Border>

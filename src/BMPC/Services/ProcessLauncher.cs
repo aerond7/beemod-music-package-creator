@@ -34,5 +34,20 @@ namespace BMPC.Services
             });
             return true;
         }
+
+        public bool OpenFolder(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                return false;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            });
+            return true;
+        }
     }
 }
