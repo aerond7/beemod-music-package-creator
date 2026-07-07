@@ -1,8 +1,12 @@
-﻿using BMPC.ViewModels;
+﻿using BMPC.Models;
+using BMPC.ViewModels;
+using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using BMPC.Services;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 
 namespace BMPC.Views
 {
@@ -10,38 +14,100 @@ namespace BMPC.Views
     {
         private MainViewModel ViewModel { get; set; }
 
+        private bool sortDescending;
+
         public Main(MainViewModel viewModel)
         {
             ThemeService.PrepareWindow(this);
             InitializeComponent();
             this.ViewModel = viewModel;
             this.DataContext = ViewModel;
-
-            // initial state
-            BtnPackageDetails.IsEnabled = false;
-            BtnPackageRemove.IsEnabled = false;
-            BtnPackageEdit.IsEnabled = false;
         }
 
-        private void LvPackages_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
         {
-            var lvPackages = (ListView)sender;
-            if (lvPackages is null)
+            var view = CollectionViewSource.GetDefaultView(LvPackages.ItemsSource);
+            if (view is null)
             {
                 return;
             }
 
-            if (lvPackages.SelectedItem is null)
+            var term = TxtSearch.Text;
+            view.Filter = string.IsNullOrWhiteSpace(term)
+                ? null
+                : o => o is MusicPackageItem item
+                       && item.Name.Contains(term, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void LvPackages_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            // Only react to double-click on an actual row, not the header / empty area.
+            var container = ItemsControl.ContainerFromElement((ListView)sender, (System.Windows.DependencyObject)e.OriginalSource);
+            if (container is not ListViewItem)
             {
-                BtnPackageDetails.IsEnabled = false;
-                BtnPackageRemove.IsEnabled = false;
-                BtnPackageEdit.IsEnabled = false;
+                return;
+            }
+
+            if (LvPackages.SelectedItem is MusicPackageItem item
+                && this.ViewModel.EditPackageCommand.CanExecute(item))
+            {
+                this.ViewModel.EditPackageCommand.Execute(item);
+            }
+        }
+
+        private void Sort_Changed(object sender, RoutedEventArgs e) => ApplySort();
+
+        private void SortDir_Click(object sender, RoutedEventArgs e)
+        {
+            this.sortDescending = !this.sortDescending;
+            IconSortDir.Kind = this.sortDescending
+                ? MaterialDesignThemes.Wpf.PackIconKind.SortDescending
+                : MaterialDesignThemes.Wpf.PackIconKind.SortAscending;
+            ApplySort();
+        }
+
+        private void ApplySort()
+        {
+            // Controls are created during InitializeComponent; guard against early events.
+            if (CmbSort is null || LvPackages?.ItemsSource is null)
+            {
+                return;
+            }
+
+            var view = CollectionViewSource.GetDefaultView(LvPackages.ItemsSource);
+            if (view is null)
+            {
+                return;
+            }
+
+            var property = CmbSort.SelectedIndex switch
+            {
+                1 => nameof(MusicPackageItem.SongCountValue),
+                2 => nameof(MusicPackageItem.AddedValue),
+                _ => nameof(MusicPackageItem.Name)
+            };
+
+            var direction = this.sortDescending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+
+            view.SortDescriptions.Clear();
+            view.SortDescriptions.Add(new SortDescription(property, direction));
+            view.Refresh();
+        }
+
+        private void LvPackages_PreviewMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var lvPackages = (ListView)sender;
+            var container = ItemsControl.ContainerFromElement(lvPackages, (System.Windows.DependencyObject)e.OriginalSource);
+            if (container is ListViewItem item)
+            {
+                item.IsSelected = true;
             }
             else
             {
-                BtnPackageDetails.IsEnabled = true;
-                BtnPackageRemove.IsEnabled = true;
-                BtnPackageEdit.IsEnabled = true;
+                // Clicked empty area / header / scrollbar -> clear selection.
+                lvPackages.SelectedItem = null;
             }
         }
 
