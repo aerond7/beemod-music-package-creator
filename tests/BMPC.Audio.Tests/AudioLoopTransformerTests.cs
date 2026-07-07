@@ -6,7 +6,7 @@ namespace BMPC.Audio.Tests;
 public class AudioLoopTransformerTests
 {
     [Fact]
-    public void AddLoopPointsToWav_AppendsSmplChunk()
+    public void AddLoopPointsToWav_AppendsCueChunk()
     {
         using var temp = TempDirectory.Create();
         var inputPath = Path.Combine(temp.Path, "input.wav");
@@ -17,12 +17,35 @@ public class AudioLoopTransformerTests
         AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath);
 
         var output = File.ReadAllBytes(outputPath);
-        Assert.Equal(input.Length + 68, output.Length);
-        Assert.Equal("smpl", Encoding.ASCII.GetString(output, input.Length, 4));
-        Assert.Equal(60, BitConverter.ToInt32(output, input.Length + 4));
-        Assert.Equal(1, BitConverter.ToInt32(output, input.Length + 36));
-        Assert.Equal(0, BitConverter.ToInt32(output, input.Length + 52));
-        Assert.Equal(2, BitConverter.ToInt32(output, input.Length + 56));
+        var cue = IndexOf(output, Encoding.ASCII.GetBytes("cue "));
+        Assert.True(cue > 0);
+        Assert.Equal(28, BitConverter.ToInt32(output, cue + 4));  // chunk data size
+        Assert.Equal(1, BitConverter.ToInt32(output, cue + 8));   // dwCuePoints
+        // A full-track loop starts at frame 0.
+        Assert.Equal(0u, BitConverter.ToUInt32(output, cue + 32)); // dwSampleOffset
+        Assert.Equal(output.Length - 8, BitConverter.ToInt32(output, 4));
+    }
+
+    [Fact]
+    public void AddLoopPointsToWav_WithExplicitLoopStart_WritesSampleOffset()
+    {
+        using var temp = TempDirectory.Create();
+        var inputPath = Path.Combine(temp.Path, "input.wav");
+        var outputPath = Path.Combine(temp.Path, "output.wav");
+        File.WriteAllBytes(inputPath, CreateMinimalWav(dataLength: 88_200)); // 44100 mono frames = 1s
+
+        AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath, new AudioLoopPoints
+        {
+            StartSeconds = 0.25,
+            EndSeconds = 0.75
+        });
+
+        var output = File.ReadAllBytes(outputPath);
+        var cue = IndexOf(output, Encoding.ASCII.GetBytes("cue "));
+        Assert.True(cue > 0);
+        // PCM source: cue offset is the plain sample-frame index (no ADPCM halving).
+        Assert.Equal(11_025u, BitConverter.ToUInt32(output, cue + 16)); // dwPosition
+        Assert.Equal(11_025u, BitConverter.ToUInt32(output, cue + 32)); // dwSampleOffset
     }
 
     [Fact]
@@ -50,48 +73,24 @@ public class AudioLoopTransformerTests
         AudioLoopTransformer.AddLoopPointsToWav(inputPath, inputPath);
 
         var output = File.ReadAllBytes(inputPath);
-        Assert.Equal(input.Length + 68, output.Length);
-        Assert.Equal("smpl", Encoding.ASCII.GetString(output, input.Length, 4));
+        Assert.True(IndexOf(output, Encoding.ASCII.GetBytes("cue ")) > 0);
         Assert.Equal(output.Length - 8, BitConverter.ToInt32(output, 4));
     }
 
     [Fact]
-    public void AddLoopPointsToWav_UsesExistingSmplLoopPoints()
+    public void ReadLoopInfo_WithExistingCue_ReturnsLoopStartInSeconds()
     {
         using var temp = TempDirectory.Create();
         var inputPath = Path.Combine(temp.Path, "input.wav");
-        var existingPath = Path.Combine(temp.Path, "existing.wav");
-        var outputPath = Path.Combine(temp.Path, "output.wav");
-        var input = CreateMinimalWav(dataLength: 4);
-        var customSmplChunk = CreateSmplChunk(startSample: 1, endSample: 2);
-        File.WriteAllBytes(inputPath, input);
-        File.WriteAllBytes(existingPath, AppendBytes(CreateMinimalWav(dataLength: 4), customSmplChunk));
+        File.WriteAllBytes(inputPath, AppendBytes(CreateMinimalWav(dataLength: 88_200), CreateCueChunk(sampleOffset: 11_025)));
 
-        AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath, existingPath);
+        var info = AudioLoopTransformer.ReadLoopInfo(inputPath);
 
-        var output = File.ReadAllBytes(outputPath);
-        Assert.Equal(1, BitConverter.ToInt32(output, input.Length + 52));
-        Assert.Equal(2, BitConverter.ToInt32(output, input.Length + 56));
-    }
-
-    [Fact]
-    public void AddLoopPointsToWav_WithExplicitLoopPoints_WritesSamplePositions()
-    {
-        using var temp = TempDirectory.Create();
-        var inputPath = Path.Combine(temp.Path, "input.wav");
-        var outputPath = Path.Combine(temp.Path, "output.wav");
-        var input = CreateMinimalWav(dataLength: 88_200);
-        File.WriteAllBytes(inputPath, input);
-
-        AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath, loopPoints: new AudioLoopPoints
-        {
-            StartSeconds = 0.25,
-            EndSeconds = 0.75
-        });
-
-        var output = File.ReadAllBytes(outputPath);
-        Assert.Equal(11_025, BitConverter.ToInt32(output, input.Length + 52));
-        Assert.Equal(33_075, BitConverter.ToInt32(output, input.Length + 56));
+        Assert.Equal(44100, info.SampleRate);
+        Assert.NotNull(info.ExistingLoopPoints);
+        Assert.Equal(0.25, info.ExistingLoopPoints.StartSeconds, precision: 3);
+        // Cue chunks carry no end, so the loop end is the track duration.
+        Assert.Equal(info.DurationSeconds, info.ExistingLoopPoints.EndSeconds, precision: 3);
     }
 
     [Fact]
@@ -103,10 +102,43 @@ public class AudioLoopTransformerTests
 
         var info = AudioLoopTransformer.ReadLoopInfo(inputPath);
 
-        Assert.Equal(44100, info.SampleRate);
         Assert.NotNull(info.ExistingLoopPoints);
         Assert.Equal(0.25, info.ExistingLoopPoints.StartSeconds, precision: 3);
         Assert.Equal(0.75, info.ExistingLoopPoints.EndSeconds, precision: 3);
+    }
+
+    [Fact]
+    public void AddLoopPointsToWav_ReprocessingDoesNotDuplicateCueChunk()
+    {
+        using var temp = TempDirectory.Create();
+        var inputPath = Path.Combine(temp.Path, "input.wav");
+        var outputPath = Path.Combine(temp.Path, "output.wav");
+        File.WriteAllBytes(inputPath, CreateMinimalWav(dataLength: 88_200));
+
+        AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath);
+        AudioLoopTransformer.AddLoopPointsToWav(outputPath, outputPath);
+
+        var output = File.ReadAllBytes(outputPath);
+        Assert.Equal(1, CountOccurrences(output, Encoding.ASCII.GetBytes("cue ")));
+        Assert.Equal(output.Length - 8, BitConverter.ToInt32(output, 4));
+    }
+
+    [Fact]
+    public void AddLoopPointsToWav_OddDataChunk_AlignsCueToEvenOffset()
+    {
+        using var temp = TempDirectory.Create();
+        var inputPath = Path.Combine(temp.Path, "input.wav");
+        var outputPath = Path.Combine(temp.Path, "output.wav");
+        // An odd-length data chunk forces a word-alignment pad byte before the cue chunk.
+        File.WriteAllBytes(inputPath, CreateMinimalWav(dataLength: 88_201));
+
+        AudioLoopTransformer.AddLoopPointsToWav(inputPath, outputPath);
+
+        var output = File.ReadAllBytes(outputPath);
+        var cue = IndexOf(output, Encoding.ASCII.GetBytes("cue "));
+        Assert.True(cue > 0);
+        Assert.Equal(0, cue % 2);
+        Assert.Equal(output.Length - 8, BitConverter.ToInt32(output, 4));
     }
 
     [Fact]
@@ -147,6 +179,19 @@ public class AudioLoopTransformerTests
         return bytes;
     }
 
+    private static byte[] CreateCueChunk(int sampleOffset)
+    {
+        var bytes = new byte[36];
+        Encoding.ASCII.GetBytes("cue ").CopyTo(bytes, 0);
+        BitConverter.GetBytes(28).CopyTo(bytes, 4);
+        BitConverter.GetBytes(1).CopyTo(bytes, 8);   // dwCuePoints
+        BitConverter.GetBytes(1).CopyTo(bytes, 12);  // dwName
+        BitConverter.GetBytes(sampleOffset).CopyTo(bytes, 16); // dwPosition
+        Encoding.ASCII.GetBytes("data").CopyTo(bytes, 20);
+        BitConverter.GetBytes(sampleOffset).CopyTo(bytes, 32); // dwSampleOffset
+        return bytes;
+    }
+
     private static byte[] CreateSmplChunk(int startSample, int endSample)
     {
         var bytes = new byte[68];
@@ -157,6 +202,46 @@ public class AudioLoopTransformerTests
         BitConverter.GetBytes(startSample).CopyTo(bytes, 52);
         BitConverter.GetBytes(endSample).CopyTo(bytes, 56);
         return bytes;
+    }
+
+    private static int CountOccurrences(byte[] haystack, byte[] needle)
+    {
+        var count = 0;
+        for (var i = 0; i + needle.Length <= haystack.Length; i++)
+        {
+            if (Matches(haystack, i, needle))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static int IndexOf(byte[] haystack, byte[] needle)
+    {
+        for (var i = 0; i + needle.Length <= haystack.Length; i++)
+        {
+            if (Matches(haystack, i, needle))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static bool Matches(byte[] haystack, int offset, byte[] needle)
+    {
+        for (var i = 0; i < needle.Length; i++)
+        {
+            if (haystack[offset + i] != needle[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static byte[] AppendBytes(byte[] left, byte[] right)

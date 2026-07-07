@@ -525,13 +525,7 @@ namespace BMPC.UserControls
                 return;
             }
 
-            if (LoopPreviewCheckBox.IsChecked == true)
-            {
-                SeekPlayback(this.loopPoints.StartSeconds);
-                return;
-            }
-
-            StopPlayback();
+            SeekPlayback(this.loopPoints.StartSeconds);
         }
 
         private void Root_Unloaded(object sender, RoutedEventArgs e)

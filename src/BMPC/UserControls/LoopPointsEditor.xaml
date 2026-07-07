@@ -98,13 +98,6 @@
                 <materialDesign:PackIcon Kind="BackupRestore" />
             </Button>
 
-            <CheckBox Grid.Column="4"
-                      x:Name="LoopPreviewCheckBox"
-                      VerticalAlignment="Center"
-                      IsChecked="True"
-                      Content="Loop"
-                      ToolTip="Wrap playback from loop end to loop start" />
-
             <TextBox Grid.Column="5"
                      x:Name="StartTextBox"
                      Margin="0,0,8,0"
