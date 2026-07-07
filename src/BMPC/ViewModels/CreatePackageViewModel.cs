@@ -268,7 +268,7 @@ namespace BMPC.ViewModels
                 try
                 {
                     RequestUpdateDialogResult?.Invoke(true);
-                    RequestClose?.Invoke();
+                    CloseWindow();
                 }
                 catch { }
             }
@@ -301,13 +301,28 @@ namespace BMPC.ViewModels
 
         private void CancelSetupCommand(object? obj)
         {
+            if (ConfirmCancel())
+            {
+                CloseWindow();
+            }
+        }
+
+        // Shared by the Cancel button and the window's X (OnClosing).
+        public bool ConfirmCancel()
+        {
             var message = _isEditMode
                 ? "Are you sure you want to cancel editing this package?"
                 : "Are you sure you want to cancel creating a new package?";
-            if (this.messageDialogService.Confirm(message, "Cancel"))
-            {
-                RequestClose?.Invoke();
-            }
+            return this.messageDialogService.Confirm(message, "Cancel");
+        }
+
+        // Marks the close as approved so OnClosing does not re-prompt.
+        public bool AllowClose { get; private set; }
+
+        private void CloseWindow()
+        {
+            AllowClose = true;
+            RequestClose?.Invoke();
         }
 
         private void BackSetupCommand(object? obj)

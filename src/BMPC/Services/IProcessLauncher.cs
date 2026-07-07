@@ -5,5 +5,7 @@ namespace BMPC.Services
         bool IsProcessRunning(string processName);
 
         bool TryLaunch(string fileName);
+
+        bool RevealInFileExplorer(string path);
     }
 }

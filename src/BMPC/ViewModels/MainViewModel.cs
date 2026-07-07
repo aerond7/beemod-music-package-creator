@@ -8,6 +8,7 @@ using BMPC.Mvvm;
 using BMPC.Services;
 using BMPC.Views;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
 
 namespace BMPC.ViewModels
@@ -27,6 +28,7 @@ namespace BMPC.ViewModels
         public ICommand CreateNewPackageCommand { get; set; }
         public ICommand EditPackageCommand { get; set; }
         public ICommand DeletePackageCommand { get; set; }
+        public ICommand OpenPackageLocationCommand { get; set; }
 
         public MainViewModel(
             IAbstractFactory<CreatePackageView> packageViewFactory,
@@ -41,8 +43,9 @@ namespace BMPC.ViewModels
             this.processLauncher = processLauncher;
             this.appPaths = appPaths;
             this.CreateNewPackageCommand = new RelayCommand(CreateNewPackage);
-            this.EditPackageCommand = new RelayCommand(EditPackage);
-            this.DeletePackageCommand = new RelayCommand(DeletePackage);
+            this.EditPackageCommand = new RelayCommand(EditPackage, IsPackageSelected);
+            this.DeletePackageCommand = new RelayCommand(DeletePackage, IsPackageSelected);
+            this.OpenPackageLocationCommand = new RelayCommand(OpenPackageLocation, IsPackageSelected);
 
             Packages.CollectionChanged += Packages_CollectionChanged;
             ReloadPackages();
@@ -53,6 +56,29 @@ namespace BMPC.ViewModels
 #if DEBUG
             this.AppVersion += " (debug build)";
 #endif
+        }
+
+        private static bool IsPackageSelected(object? obj) => obj is MusicPackageItem;
+
+        private void OpenPackageLocation(object? obj)
+        {
+            try
+            {
+                if (obj is not MusicPackageItem item)
+                {
+                    return;
+                }
+
+                var path = Path.GetFullPath(Path.Combine(this.appPaths.BeePackagesDirectory, item.Package.Id + Constants.BeePackageFileExtension));
+                if (!this.processLauncher.RevealInFileExplorer(path))
+                {
+                    this.messageDialogService.ShowWarning("The package file could not be found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex);
+            }
         }
 
         private void DeletePackage(object? obj)

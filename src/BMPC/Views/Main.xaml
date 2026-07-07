@@ -14,7 +14,14 @@
         Height="700"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanMinimize"
+        PreviewMouseDown="Window_PreviewMouseDown"
         Background="{DynamicResource MaterialDesign.Brush.Background}">
+
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control"
+                    Key="N"
+                    Command="{Binding CreateNewPackageCommand}" />
+    </Window.InputBindings>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -123,6 +130,7 @@
                     <!-- HEADER TOOLBAR -->
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
@@ -142,25 +150,22 @@
                                        Margin="8,0,0,0" />
                         </StackPanel>
 
+                        <!-- Search / filter -->
+                        <TextBox Grid.Column="1"
+                                 Name="TxtSearch"
+                                 VerticalAlignment="Center"
+                                 Margin="8,0,8,0"
+                                 MinWidth="180"
+                                 TextChanged="TxtSearch_TextChanged"
+                                 materialDesign:HintAssist.Hint="Search packages..."
+                                 materialDesign:TextFieldAssist.HasClearButton="True"
+                                 Style="{DynamicResource MaterialDesignTextBox}" />
+
                         <!-- Row actions -->
-                        <StackPanel Grid.Column="1"
+                        <StackPanel Grid.Column="2"
                                     Orientation="Horizontal"
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Right">
-
-                            <!-- Details button stays disabled/hidden until selection -->
-                            <Button Name="BtnPackageDetails"
-                                    Style="{DynamicResource MaterialDesignFlatDarkBgButton}"
-                                    Padding="10,4"
-                                    Margin="0,0,8,0"
-                                    Visibility="Hidden">
-                                <StackPanel Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <materialDesign:PackIcon Margin="0,0,6,0"
-                                                             Kind="ClipboardList" />
-                                    <TextBlock Text="Details" />
-                                </StackPanel>
-                            </Button>
 
                             <!-- Remove button bound to LV selection -->
                             <Button Name="BtnPackageRemove"
@@ -219,22 +224,103 @@
                         <ListView Name="LvPackages"
                                   ItemsSource="{Binding Packages}"
                                   SelectionMode="Single"
-                                  SelectionChanged="LvPackages_SelectionChanged"
+                                  PreviewMouseDown="LvPackages_PreviewMouseDown"
+                                  MouseDoubleClick="LvPackages_MouseDoubleClick"
+                                  GridViewColumnHeader.Click="LvPackages_ColumnHeaderClick"
                                   BorderThickness="0">
+                            <ListView.InputBindings>
+                                <KeyBinding Key="Return"
+                                            Command="{Binding EditPackageCommand}"
+                                            CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                                <KeyBinding Key="F2"
+                                            Command="{Binding EditPackageCommand}"
+                                            CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                                <KeyBinding Key="Delete"
+                                            Command="{Binding DeletePackageCommand}"
+                                            CommandParameter="{Binding SelectedItem, RelativeSource={RelativeSource AncestorType=ListView}}" />
+                            </ListView.InputBindings>
+                            <ListView.ContextMenu>
+                                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="New package"
+                                              Command="{Binding CreateNewPackageCommand}">
+                                        <MenuItem.Icon>
+                                            <materialDesign:PackIcon Kind="PlusBold" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <Separator />
+                                    <MenuItem Header="Edit"
+                                              Command="{Binding EditPackageCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                        <MenuItem.Icon>
+                                            <materialDesign:PackIcon Kind="Pencil" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="Remove"
+                                              Command="{Binding DeletePackageCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                        <MenuItem.Icon>
+                                            <materialDesign:PackIcon Kind="TrashCan" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <Separator />
+                                    <MenuItem Header="Open package location"
+                                              Command="{Binding OpenPackageLocationCommand}"
+                                              CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}">
+                                        <MenuItem.Icon>
+                                            <materialDesign:PackIcon Kind="FolderOpenOutline" />
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </ListView.ContextMenu>
                             <ListView.View>
                                 <GridView AllowsColumnReorder="False">
-                                    <GridViewColumn Header="Name"
-                                                    DisplayMemberBinding="{Binding Name}"
-                                                    Width="500"/>
-                                    <GridViewColumn Header="Songs in package"
+                                    <GridView.ColumnHeaderContainerStyle>
+                                        <Style TargetType="GridViewColumnHeader"
+                                               BasedOn="{StaticResource {x:Type GridViewColumnHeader}}">
+                                            <Setter Property="HorizontalContentAlignment" Value="Left" />
+                                            <Setter Property="Padding" Value="6,4,0,10" />
+                                        </Style>
+                                    </GridView.ColumnHeaderContainerStyle>
+                                    <GridViewColumn x:Name="ColName"
+                                                    Header="Name"
+                                                    Width="500">
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}"
+                                                           ToolTip="{Binding Description}" />
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn x:Name="ColSongs"
+                                                    Header="Songs in package"
                                                     DisplayMemberBinding="{Binding SongCount}"
                                                     Width="200"/>
-                                    <GridViewColumn Header="Added"
+                                    <GridViewColumn x:Name="ColAdded"
+                                                    Header="Added"
                                                     DisplayMemberBinding="{Binding Added}"
                                                     Width="300"/>
                                 </GridView>
                             </ListView.View>
                         </ListView>
+
+                        <!-- Empty state -->
+                        <TextBlock Text="No packages yet - click &quot;New package&quot; to create one."
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False"
+                                   FontSize="14"
+                                   Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding TotalPackages}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </Grid>
                 </Grid>
             </Border>
