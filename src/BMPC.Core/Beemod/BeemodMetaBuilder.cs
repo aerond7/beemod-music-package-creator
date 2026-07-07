@@ -22,7 +22,7 @@ namespace BMPC.Core.Beemod
 
         public BeemodMetaBuilder WithName(string name)
         {
-            this.Id = string.Format(Constants.PackageIdPattern, Utils.ConvertToSafeFileName(name).ToUpperInvariant());
+            this.Id = string.Format(Constants.PackageIdPattern, Utils.ConvertToSafeFileName(name).ToLowerInvariant());
             this.Name = name;
             return this;
         }
@@ -77,7 +77,7 @@ namespace BMPC.Core.Beemod
                     writer.WriteLine(KVObjectStart("Music"));
 
                     // write basic music info
-                    writer.WriteLine(new KeyValueString("ID", music.Id));
+                    writer.WriteLine(new KeyValueString("ID", GetMusicId(music.Name)));
                     writer.WriteLine(new KeyValueString("Name", Utils.EscapeString(music.Name)));
                     if (music.ShortName is not null)
                     {
@@ -175,6 +175,13 @@ namespace BMPC.Core.Beemod
             return stream;
         }
 
+        // Music IDs include the package name so they stay unique across packages.
+        private string GetMusicId(string musicName)
+            => string.Format(
+                Constants.MusicIdPattern,
+                Utils.ConvertToSafeFileName(this.Name).ToLowerInvariant(),
+                Utils.ConvertToSafeFileName(musicName).ToLowerInvariant());
+
         private string KVObjectStart(string objectName) =>
             $"\"{objectName}\"\n{{";
 
@@ -184,7 +191,6 @@ namespace BMPC.Core.Beemod
 
     public class BeemodPackMusic
     {
-        public string Id => string.Format(Constants.MusicIdPattern, Utils.ConvertToSafeFileName(this.Name).ToUpperInvariant());
         public string Name { get; set; } = string.Empty;
         public string? ShortName { get; set; }
         public string Group { get; set; } = string.Empty;

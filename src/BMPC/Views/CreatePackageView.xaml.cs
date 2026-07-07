@@ -37,6 +37,14 @@ namespace BMPC.Views
             if (ViewModel.IsImporting)
             {
                 e.Cancel = true;
+                base.OnClosing(e);
+                return;
+            }
+
+            // X button must show the same confirm as the Cancel button.
+            if (!ViewModel.AllowClose && !ViewModel.ConfirmCancel())
+            {
+                e.Cancel = true;
             }
 
             base.OnClosing(e);

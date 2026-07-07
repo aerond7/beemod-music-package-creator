@@ -18,5 +18,36 @@ namespace BMPC.Services
             Process.Start(fileName);
             return true;
         }
+
+        public bool RevealInFileExplorer(string path)
+        {
+            if (!File.Exists(path) && !Directory.Exists(path))
+            {
+                return false;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                Arguments = $"/select,\"{path}\"",
+                UseShellExecute = true
+            });
+            return true;
+        }
+
+        public bool OpenFolder(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                return false;
+            }
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                UseShellExecute = true
+            });
+            return true;
+        }
     }
 }

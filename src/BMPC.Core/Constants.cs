@@ -10,8 +10,8 @@
         public const string SettingsFile = @"bmpc\settings.json";
 
         // Package Constants
-        public const string PackageIdPattern = "BMPC_{0}_PACK";
-        public const string MusicIdPattern = "BMPC_{0}_MUSIC";
+        public const string PackageIdPattern = "bmpc_{0}";
+        public const string MusicIdPattern = "bmpc_{0}_{1}_music";
 
         // BEEmod Constants
         public const string BeePackagesDirectory = "packages";

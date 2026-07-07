@@ -189,7 +189,9 @@ namespace BMPC.ViewModels
                     Group = s.Group,
                     Icon = s.IconFullPath,
                     BaseMusicPath = s.BaseFullPath,
+                    BaseLoopPoints = s.BaseLoopPoints?.Clone(),
                     TractorBeamPath = s.TractorBeamFullPath,
+                    TractorBeamLoopPoints = s.TractorBeamLoopPoints?.Clone(),
                     UseDefaultTractorBeamMusic = s.UseDefaultTractorBeamMusic,
                     SyncTractorBeamMusic = s.SyncTractorBeamMusic,
                     SpeedGelSfxFullPaths = s.SpeedGelSfxFullPaths,
@@ -265,6 +267,9 @@ namespace BMPC.ViewModels
 
                 try
                 {
+                    // Approve the close first: setting DialogResult triggers OnClosing,
+                    // which must not prompt for a user-initiated cancel.
+                    AllowClose = true;
                     RequestUpdateDialogResult?.Invoke(true);
                     RequestClose?.Invoke();
                 }
@@ -299,13 +304,28 @@ namespace BMPC.ViewModels
 
         private void CancelSetupCommand(object? obj)
         {
+            if (ConfirmCancel())
+            {
+                CloseWindow();
+            }
+        }
+
+        // Shared by the Cancel button and the window's X (OnClosing).
+        public bool ConfirmCancel()
+        {
             var message = _isEditMode
                 ? "Are you sure you want to cancel editing this package?"
                 : "Are you sure you want to cancel creating a new package?";
-            if (this.messageDialogService.Confirm(message, "Cancel"))
-            {
-                RequestClose?.Invoke();
-            }
+            return this.messageDialogService.Confirm(message, "Cancel");
+        }
+
+        // Marks the close as approved so OnClosing does not re-prompt.
+        public bool AllowClose { get; private set; }
+
+        private void CloseWindow()
+        {
+            AllowClose = true;
+            RequestClose?.Invoke();
         }
 
         private void BackSetupCommand(object? obj)
@@ -403,7 +423,9 @@ namespace BMPC.ViewModels
                                 Group = item.Group,
                                 IconFullPath = item.Icon,
                                 BaseFullPath = item.BaseMusicPath,
+                                BaseLoopPoints = item.BaseLoopPoints?.Clone(),
                                 TractorBeamFullPath = item.TractorBeamPath,
+                                TractorBeamLoopPoints = item.TractorBeamLoopPoints?.Clone(),
                                 UseDefaultTractorBeamMusic = item.UseDefaultTractorBeamMusic,
                                 SyncTractorBeamMusic = item.SyncTractorBeamMusic,
                                 SpeedGelSfxFullPaths = item.SpeedGelSfxFullPaths,

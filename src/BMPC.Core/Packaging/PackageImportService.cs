@@ -146,7 +146,7 @@ namespace BMPC.Core.Packaging
         }
 
         private static string GetPackageId(PackageData data)
-            => string.Format(Constants.PackageIdPattern, Utils.ConvertToSafeFileName(data.Name).ToUpperInvariant());
+            => string.Format(Constants.PackageIdPattern, Utils.ConvertToSafeFileName(data.Name).ToLowerInvariant());
 
         private static string? GetOldBeePackPath(string? oldPackageId)
         {

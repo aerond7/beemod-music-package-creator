@@ -151,7 +151,7 @@ public class PackageServiceTests
         => JsonSerializer.Deserialize<BmpcPackage>(File.ReadAllText(GetBmpcPath(packageId)))!;
 
     private static string GetPackageId(string name)
-        => string.Format(Constants.PackageIdPattern, Utils.ConvertToSafeFileName(name).ToUpperInvariant());
+        => string.Format(Constants.PackageIdPattern, Utils.ConvertToSafeFileName(name).ToLowerInvariant());
 
     private static string GetBeePath(string packageId)
         => Path.Combine(Constants.BeePackagesDirectory, packageId + Constants.BeePackageFileExtension);

@@ -53,13 +53,15 @@ namespace BMPC.Core.Packaging
         public bool IsBaseAudioCached(PackageSong song)
             => this.OldBeePackPath != null
                 && this.OldSong != null
-                && song.BaseFullPath == this.OldSong.BaseFullPath;
+                && song.BaseFullPath == this.OldSong.BaseFullPath
+                && AreLoopPointsEqual(song.BaseLoopPoints, this.OldSong.BaseLoopPoints);
 
         public bool IsTractorBeamCached(PackageSong song)
             => this.OldBeePackPath != null
                 && this.OldSong != null
                 && song.TractorBeamFullPath != null
-                && song.TractorBeamFullPath == this.OldSong.TractorBeamFullPath;
+                && song.TractorBeamFullPath == this.OldSong.TractorBeamFullPath
+                && AreLoopPointsEqual(song.TractorBeamLoopPoints, this.OldSong.TractorBeamLoopPoints);
 
         public bool IsIconCached(PackageSong song)
             => this.OldBeePackPath != null
@@ -78,5 +80,10 @@ namespace BMPC.Core.Packaging
                 && this.OldSong != null
                 && index < this.OldSong.BounceGelSfxFullPaths.Count
                 && song.BounceGelSfxFullPaths[index] == this.OldSong.BounceGelSfxFullPaths[index];
+
+        private static bool AreLoopPointsEqual(BMPC.Audio.Objects.AudioLoopPoints? left, BMPC.Audio.Objects.AudioLoopPoints? right)
+            => left?.IsEnabled == right?.IsEnabled
+                && left?.StartSeconds == right?.StartSeconds
+                && left?.EndSeconds == right?.EndSeconds;
     }
 }
