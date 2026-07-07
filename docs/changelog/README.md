@@ -4,7 +4,8 @@ Version changelogs are user-facing working notes for release notes. Keep one fil
 
 ## Files
 
-- `1.3.0.md` - current 1.3.0 tracking notes.
+- `1.4.0.md` - current 1.4.0 tracking notes.
+- `1.3.0.md` - 1.3.0 tracking notes.
 - `_template.md` - copy for future versions.
 
 ## Format
