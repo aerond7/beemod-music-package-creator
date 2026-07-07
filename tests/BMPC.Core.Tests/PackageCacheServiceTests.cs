@@ -1,3 +1,4 @@
+using BMPC.Audio.Objects;
 using BMPC.Core.Models;
 using BMPC.Core.Packaging;
 
@@ -67,6 +68,36 @@ public class PackageCacheServiceTests
         Assert.False(cache.IsIconCached(song));
         Assert.False(cache.IsSpeedGelSfxCached(song, 0));
         Assert.False(cache.IsBounceGelSfxCached(song, 0));
+    }
+
+    [Fact]
+    public void CacheFlags_RequireUnchangedLoopPoints()
+    {
+        var service = new PackageCacheService();
+        var songId = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var context = CreateContext(new PackageSong
+        {
+            SongId = songId,
+            Name = "Old Song",
+            BaseFullPath = "base.wav",
+            BaseLoopPoints = new AudioLoopPoints { StartSeconds = 0, EndSeconds = 10 },
+            TractorBeamFullPath = "tb.wav",
+            TractorBeamLoopPoints = new AudioLoopPoints { StartSeconds = 1, EndSeconds = 9 }
+        });
+        var song = new PackageSong
+        {
+            SongId = songId,
+            Name = "Current",
+            BaseFullPath = "base.wav",
+            BaseLoopPoints = new AudioLoopPoints { StartSeconds = 2, EndSeconds = 10 },
+            TractorBeamFullPath = "tb.wav",
+            TractorBeamLoopPoints = new AudioLoopPoints { StartSeconds = 1, EndSeconds = 8 }
+        };
+
+        var cache = service.GetSongCache(context, song);
+
+        Assert.False(cache.IsBaseAudioCached(song));
+        Assert.False(cache.IsTractorBeamCached(song));
     }
 
     private static PackageImportContext CreateContext(params PackageSong[] oldSongs)

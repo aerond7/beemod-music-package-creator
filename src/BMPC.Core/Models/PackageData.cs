@@ -1,4 +1,6 @@
-﻿namespace BMPC.Core.Models
+using BMPC.Audio.Objects;
+
+namespace BMPC.Core.Models
 {
     public class PackageData
     {
@@ -18,7 +20,9 @@
         public string? Group { get; set; }
         public string IconFullPath { get; set; } = "";
         public string BaseFullPath { get; set; } = "";
+        public AudioLoopPoints? BaseLoopPoints { get; set; }
         public string? TractorBeamFullPath { get; set; }
+        public AudioLoopPoints? TractorBeamLoopPoints { get; set; }
         public bool UseDefaultTractorBeamMusic { get; set; }
         public bool SyncTractorBeamMusic { get; set; }
         public List<string> SpeedGelSfxFullPaths { get; set; } = new List<string>();

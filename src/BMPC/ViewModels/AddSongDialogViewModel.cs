@@ -1,4 +1,5 @@
 ﻿using BMPC.Commands;
+using BMPC.Audio.Objects;
 using BMPC.Core;
 using BMPC.Models;
 using BMPC.Mvvm;
@@ -198,6 +199,28 @@ namespace BMPC.ViewModels
         public List<string> SelectedSpeedGelSfxFullPaths { get; private set; } = new List<string>();
         public List<string> SelectedBounceGelSfxFullPaths { get; private set; } = new List<string>();
 
+        private AudioLoopPoints? _baseLoopPoints;
+        public AudioLoopPoints? BaseLoopPoints
+        {
+            get => _baseLoopPoints;
+            set
+            {
+                _baseLoopPoints = value;
+                NotifyPropertyChanged(nameof(BaseLoopPoints));
+            }
+        }
+
+        private AudioLoopPoints? _funnelLoopPoints;
+        public AudioLoopPoints? FunnelLoopPoints
+        {
+            get => _funnelLoopPoints;
+            set
+            {
+                _funnelLoopPoints = value;
+                NotifyPropertyChanged(nameof(FunnelLoopPoints));
+            }
+        }
+
         public event Action? RequestClose;
         public event Action<bool?>? RequestUpdateDialogResult;
 
@@ -245,7 +268,9 @@ namespace BMPC.ViewModels
                 this.MusicAuthors = existingModel.Authors;
                 this.PreviewImage = existingModel.Icon;
                 this.BaseMusicFilePath = existingModel.BaseMusicPath;
+                this.BaseLoopPoints = existingModel.BaseLoopPoints?.Clone();
                 this.FunnelMusicFilePath = existingModel.TractorBeamPath ?? "No file selected.";
+                this.FunnelLoopPoints = existingModel.TractorBeamLoopPoints?.Clone();
                 this.ApplyDefaultFunnelMusic = existingModel.UseDefaultTractorBeamMusic;
                 this.SyncFunnelMusic = existingModel.SyncTractorBeamMusic;
                 SetSpeedGelSfxPaths(existingModel.SpeedGelSfxFullPaths);
@@ -336,12 +361,14 @@ namespace BMPC.ViewModels
                     case "base":
                         {
                             BaseMusicFilePath = fileName;
+                            BaseLoopPoints = null;
                             break;
                         }
 
                     case "funnel":
                         {
                             FunnelMusicFilePath = fileName;
+                            FunnelLoopPoints = null;
                             break;
                         }
                 }

@@ -6,14 +6,14 @@ namespace BMPC.Core.Packaging
 {
     public interface IAudioTransformer
     {
-        AudioTransformResult ConvertForGameWav(string inputFilePath, string outputFilePath);
+        AudioTransformResult ConvertForGameWav(string inputFilePath, string outputFilePath, AudioLoopPoints? loopPoints = null);
         AudioTransformResult ConvertForSampleMp3(string inputFilePath, string outputFilePath);
     }
 
     public sealed class AudioTransformerAdapter : IAudioTransformer
     {
-        public AudioTransformResult ConvertForGameWav(string inputFilePath, string outputFilePath)
-            => AudioTransformer.ConvertForGameWav(inputFilePath, outputFilePath);
+        public AudioTransformResult ConvertForGameWav(string inputFilePath, string outputFilePath, AudioLoopPoints? loopPoints = null)
+            => AudioTransformer.ConvertForGameWav(inputFilePath, outputFilePath, loopPoints);
 
         public AudioTransformResult ConvertForSampleMp3(string inputFilePath, string outputFilePath)
             => AudioTransformer.ConvertForSampleMp3(inputFilePath, outputFilePath);
@@ -87,7 +87,7 @@ namespace BMPC.Core.Packaging
 
             progress.Report("Encoding game audio...");
             ThrowIfFailed(
-                this.audioTransformer.ConvertForGameWav(song.BaseFullPath, Path.Combine(context.GameMusicPath, names.BaseGameFileName)),
+                this.audioTransformer.ConvertForGameWav(song.BaseFullPath, Path.Combine(context.GameMusicPath, names.BaseGameFileName), song.BaseLoopPoints),
                 "Failed to resample base music for game");
         }
 
@@ -121,7 +121,7 @@ namespace BMPC.Core.Packaging
                 this.audioTransformer.ConvertForSampleMp3(song.TractorBeamFullPath, Path.Combine(context.BeeSamplePath, names.FunnelSampleFileName)),
                 "Failed to resample funnel music for BEE sample");
             ThrowIfFailed(
-                this.audioTransformer.ConvertForGameWav(song.TractorBeamFullPath, Path.Combine(context.GameMusicPath, names.FunnelGameFileName)),
+                this.audioTransformer.ConvertForGameWav(song.TractorBeamFullPath, Path.Combine(context.GameMusicPath, names.FunnelGameFileName), song.TractorBeamLoopPoints),
                 "Failed to resample funnel music for game");
         }
 

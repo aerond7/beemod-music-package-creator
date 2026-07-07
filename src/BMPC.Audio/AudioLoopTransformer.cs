@@ -1,169 +1,383 @@
-﻿using System.Text;
+using BMPC.Audio.Objects;
+using NAudio.Wave;
+using System.Text;
 
 namespace BMPC.Audio
 {
+    // Source engine (GoldSrc/Source, incl. Portal 2 / BEEmod) loops WAV audio through the
+    // RIFF "cue " chunk, NOT the "smpl" chunk. It reads a single loop-start sample offset,
+    // plays to the end of the audio data, then jumps back to that cue point. There is no
+    // loop-end concept in the engine: a loop end is realized by physically trimming the
+    // audio at the end point (done upstream in AudioTransformer before encoding).
+    //
+    // For Microsoft ADPCM output the engine mis-scales the cue sample offset and expects it
+    // HALVED relative to the true PCM sample-frame index (documented Source quirk; a loop
+    // that starts at frame 0 is unaffected since 0/2 == 0).
     public static class AudioLoopTransformer
     {
         private const int BufferSize = 81920;
+        private const int CueChunkLength = 36;   // 8 header + 4 count + 24 (one cue point)
+        private const int CueChunkDataLength = 28; // 4 count + 24 cue point
+        private const int SmplChunkDataLength = 60;
         private static readonly byte[] RiffMarker = Encoding.ASCII.GetBytes("RIFF");
-        private static readonly byte[] SmplMarker = Encoding.ASCII.GetBytes("smpl");
+        private const string SmplId = "smpl";
+        private const string CueId = "cue ";
 
-        private static byte[]? GetSmplChunkData(string filePath)
+        public static AudioLoopInfo ReadLoopInfo(string filePath)
         {
-            var smplIndex = FindLastMarker(filePath, SmplMarker);
-            if (smplIndex == -1)
+            using var reader = new AudioFileReader(filePath);
+            var durationSeconds = reader.TotalTime.TotalSeconds;
+            var sampleRate = reader.WaveFormat.SampleRate;
+
+            return new AudioLoopInfo
+            {
+                SampleRate = sampleRate,
+                DurationSeconds = durationSeconds,
+                TotalSamples = SecondsToSamples(durationSeconds, sampleRate),
+                ExistingLoopPoints = TryReadSourceLoopPoints(filePath)
+            };
+        }
+
+        // Writes a single "cue " loop-start chunk for the Source engine. Any pre-existing
+        // "cue "/"smpl" chunks are stripped so re-processing never accumulates duplicates.
+        // Every game asset loops; a null loop means "loop the whole track" (cue at frame 0).
+        public static void AddLoopPointsToWav(
+            string inputPath,
+            string outputPath,
+            AudioLoopPoints? loopPoints = null)
+        {
+            if (!TryReadWaveLayout(inputPath, out var layout))
+            {
+                return;
+            }
+
+            if (!TryReadChunks(inputPath, out var chunks))
+            {
+                return;
+            }
+
+            var startSeconds = loopPoints is { IsEnabled: true } ? loopPoints.StartSeconds : 0;
+            var startFrame = Clamp(
+                SecondsToSamples(startSeconds, layout.SampleRate),
+                0,
+                Math.Max(0, layout.TotalSamples - 1));
+
+            var cueOffset = layout.IsCompressed ? startFrame / 2 : startFrame;
+            var cueChunk = CreateCueChunk((uint)cueOffset);
+
+            RebuildFile(inputPath, outputPath, chunks, cueChunk);
+        }
+
+        private static AudioLoopPoints? TryReadSourceLoopPoints(string filePath)
+        {
+            if (!Path.GetExtension(filePath).Equals(".wav", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (!TryReadWaveLayout(filePath, out var layout))
+            {
+                return null;
+            }
+
+            if (!TryReadChunks(filePath, out var chunks))
+            {
+                return null;
+            }
+
+            // A "smpl" chunk carries both start and end, so prefer it when present. Otherwise
+            // fall back to a "cue " chunk, which only defines the loop start.
+            return TryReadSmplLoop(filePath, chunks, layout)
+                ?? TryReadCueLoop(filePath, chunks, layout);
+        }
+
+        private static AudioLoopPoints? TryReadSmplLoop(string filePath, List<RiffChunk> chunks, WaveLayout layout)
+        {
+            RiffChunk? smpl = null;
+            foreach (var chunk in chunks)
+            {
+                if (chunk.Id == SmplId)
+                {
+                    smpl = chunk;
+                }
+            }
+
+            if (smpl is not { } smplChunk || smplChunk.DataSize < SmplChunkDataLength)
             {
                 return null;
             }
 
             using var stream = File.OpenRead(filePath);
-            stream.Position = smplIndex + 4;
+            Span<byte> bytes = stackalloc byte[4];
 
-            Span<byte> sizeBytes = stackalloc byte[4];
-            stream.ReadExactly(sizeBytes);
+            stream.Position = smplChunk.DataOffset + 28; // dwNumSampleLoops
+            stream.ReadExactly(bytes);
+            if (BitConverter.ToInt32(bytes) <= 0)
+            {
+                return null;
+            }
 
-            int smplChunkSize = BitConverter.ToInt32(sizeBytes) + 8; // smpl chunk size is specified 4 bytes after start of smpl chunk id
-            byte[] chunkData = new byte[smplChunkSize];
-            stream.Position = smplIndex;
-            stream.ReadExactly(chunkData);
-            return chunkData;
+            stream.Position = smplChunk.DataOffset + 44; // loop dwStart
+            stream.ReadExactly(bytes);
+            var startSample = BitConverter.ToUInt32(bytes);
+
+            stream.ReadExactly(bytes); // loop dwEnd
+            var endSample = BitConverter.ToUInt32(bytes);
+
+            return NormalizeLoop(new AudioLoopPoints
+            {
+                IsEnabled = true,
+                StartSeconds = SamplesToSeconds(startSample, layout.SampleRate),
+                EndSeconds = SamplesToSeconds(endSample, layout.SampleRate)
+            }, layout.DurationSeconds);
         }
 
-        private static long FindFirstMarker(string filePath, byte[] marker)
+        private static AudioLoopPoints? TryReadCueLoop(string filePath, List<RiffChunk> chunks, WaveLayout layout)
         {
-            using var stream = File.OpenRead(filePath);
-            var matched = 0;
-
-            for (var position = 0L; position < stream.Length; position++)
+            RiffChunk? cue = null;
+            foreach (var chunk in chunks)
             {
-                var value = stream.ReadByte();
-                if (value == marker[matched])
+                if (chunk.Id == CueId)
                 {
-                    matched++;
-                    if (matched == marker.Length)
-                    {
-                        return position - marker.Length + 1;
-                    }
-
-                    continue;
+                    cue = chunk;
                 }
-
-                matched = value == marker[0] ? 1 : 0;
             }
 
-            return -1;
-        }
+            if (cue is not { } cueChunk || cueChunk.DataSize < CueChunkDataLength)
+            {
+                return null;
+            }
 
-        private static long FindLastMarker(string filePath, byte[] marker)
-        {
             using var stream = File.OpenRead(filePath);
-            if (stream.Length < marker.Length)
+            Span<byte> bytes = stackalloc byte[4];
+
+            stream.Position = cueChunk.DataOffset; // dwCuePoints
+            stream.ReadExactly(bytes);
+            if (BitConverter.ToInt32(bytes) <= 0)
             {
-                return -1;
+                return null;
             }
 
-            var buffer = new byte[BufferSize + marker.Length - 1];
-            var carry = Array.Empty<byte>();
-            var blockEnd = stream.Length;
+            stream.Position = cueChunk.DataOffset + 4 + 20; // first cue point dwSampleOffset
+            stream.ReadExactly(bytes);
+            var cueOffset = BitConverter.ToUInt32(bytes);
 
-            while (blockEnd > 0)
+            // Reverse the ADPCM half-scaling to recover the true sample-frame index.
+            var startFrame = layout.IsCompressed ? cueOffset * 2 : cueOffset;
+
+            return NormalizeLoop(new AudioLoopPoints
             {
-                var readSize = (int)Math.Min(BufferSize, blockEnd);
-                blockEnd -= readSize;
-
-                stream.Position = blockEnd;
-                stream.ReadExactly(buffer.AsSpan(0, readSize));
-                carry.CopyTo(buffer.AsSpan(readSize));
-
-                var searchLength = readSize + carry.Length;
-                for (var i = searchLength - marker.Length; i >= 0; i--)
-                {
-                    if (IsMatch(buffer, i, marker))
-                    {
-                        return blockEnd + i;
-                    }
-                }
-
-                var carryLength = Math.Min(marker.Length - 1, readSize);
-                carry = buffer[..carryLength].ToArray();
-            }
-
-            return -1;
+                IsEnabled = true,
+                StartSeconds = SamplesToSeconds(startFrame, layout.SampleRate),
+                EndSeconds = layout.DurationSeconds
+            }, layout.DurationSeconds);
         }
 
-        private static bool IsMatch(byte[] buffer, int offset, byte[] marker)
+        private static bool TryReadWaveLayout(string filePath, out WaveLayout layout)
         {
-            for (var i = 0; i < marker.Length; i++)
+            layout = new WaveLayout();
+
+            try
             {
-                if (buffer[offset + i] != marker[i])
+                using var stream = File.OpenRead(filePath);
+                Span<byte> header = stackalloc byte[12];
+                if (stream.Length < header.Length)
                 {
                     return false;
                 }
-            }
 
-            return true;
+                stream.ReadExactly(header);
+                if (!header[..4].SequenceEqual(RiffMarker) || Encoding.ASCII.GetString(header[8..12]) != "WAVE")
+                {
+                    return false;
+                }
+
+                using var waveReader = new WaveFileReader(filePath);
+                var durationSeconds = waveReader.TotalTime.TotalSeconds;
+                var sampleRate = waveReader.WaveFormat.SampleRate;
+
+                layout = new WaveLayout
+                {
+                    SampleRate = sampleRate,
+                    DurationSeconds = durationSeconds,
+                    TotalSamples = SecondsToSamples(durationSeconds, sampleRate),
+                    IsCompressed = waveReader.WaveFormat.Encoding != WaveFormatEncoding.Pcm
+                };
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
-        public static void AddLoopPointsToWav(string inputPath, string outputPath, string? existingFilePath = null)
+        // Walks the RIFF chunk tree instead of scanning raw bytes, so audio data that happens
+        // to contain an ASCII chunk id ("cue ", "smpl", "RIFF") is never mistaken for a header.
+        private static bool TryReadChunks(string filePath, out List<RiffChunk> chunks)
         {
-            var riffIndex = FindFirstMarker(inputPath, RiffMarker);
-            if (riffIndex == -1)
+            chunks = new List<RiffChunk>();
+
+            try
             {
-                return;
+                using var stream = File.OpenRead(filePath);
+                if (stream.Length < 12)
+                {
+                    return false;
+                }
+
+                Span<byte> header = stackalloc byte[12];
+                stream.ReadExactly(header);
+                if (!header[..4].SequenceEqual(RiffMarker) || Encoding.ASCII.GetString(header[8..12]) != "WAVE")
+                {
+                    return false;
+                }
+
+                long position = 12;
+                Span<byte> chunkHeader = stackalloc byte[8];
+                while (position + 8 <= stream.Length)
+                {
+                    stream.Position = position;
+                    stream.ReadExactly(chunkHeader);
+                    var id = Encoding.ASCII.GetString(chunkHeader[..4]);
+                    var dataSize = BitConverter.ToUInt32(chunkHeader[4..8]);
+                    var dataOffset = position + 8;
+                    if (dataOffset + dataSize > stream.Length)
+                    {
+                        break; // truncated/invalid chunk, stop walking
+                    }
+
+                    chunks.Add(new RiffChunk(id, position, dataOffset, dataSize));
+
+                    // Chunks are word aligned: odd-sized data is followed by a pad byte.
+                    position = dataOffset + dataSize + (dataSize & 1);
+                }
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Copies every chunk except "cue "/"smpl" verbatim (re-normalizing word alignment),
+        // then appends the freshly built cue chunk (if any) and patches the RIFF size.
+        private static void RebuildFile(string inputPath, string outputPath, List<RiffChunk> chunks, byte[]? cueChunk)
+        {
+            var tempPath = outputPath + ".tmp";
+
+            using (var input = File.OpenRead(inputPath))
+            using (var output = File.Create(tempPath))
+            {
+                input.Position = 0;
+                CopyBytes(input, output, 12); // RIFF/size/WAVE header; size patched below.
+
+                foreach (var chunk in chunks)
+                {
+                    if (chunk.Id == CueId || chunk.Id == SmplId)
+                    {
+                        continue;
+                    }
+
+                    input.Position = chunk.HeaderOffset;
+                    CopyBytes(input, output, 8 + chunk.DataSize);
+                    if ((chunk.DataSize & 1) == 1)
+                    {
+                        output.WriteByte(0); // restore word-alignment pad byte
+                    }
+                }
+
+                if (cueChunk is not null)
+                {
+                    if ((output.Length & 1) == 1)
+                    {
+                        output.WriteByte(0); // align the cue chunk to an even offset
+                    }
+
+                    output.Write(cueChunk, 0, cueChunk.Length);
+                }
+
+                WriteRiffFileSize(output, 4, output.Length);
             }
 
-            var inputLength = new FileInfo(inputPath).Length;
+            File.Move(tempPath, outputPath, overwrite: true);
+        }
 
-            // define our loop start and end
-            double start = 0.0;
-            double end = inputLength - 44.0;
-
-            // try to read smpl chunk from existing file
-            byte[]? smplChunk = existingFilePath is not null ? GetSmplChunkData(existingFilePath) : null;
-
-            // if there isn't any existing smpl chunk then create a brand new one and set loop at start and end
-            if (smplChunk is null)
+        private static void CopyBytes(Stream source, Stream destination, long count)
+        {
+            var buffer = new byte[BufferSize];
+            while (count > 0)
             {
-                smplChunk = new byte[68]; // the default smpl chunk written here is 60 bytes long
-                Array.Fill(smplChunk, (byte)0); // fill array with zeros
-                Encoding.ASCII.GetBytes("smpl").CopyTo(smplChunk, 0);
-                BitConverter.GetBytes(60).CopyTo(smplChunk, 4); // default smpl chunk length is 60 bytes
-                BitConverter.GetBytes(60).CopyTo(smplChunk, 20); // middle C is MIDI note 60, therefore make MIDI unity note 60
-                BitConverter.GetBytes(1).CopyTo(smplChunk, 36); // write at byte offset 36 that there is one loop cue info in the file
-                BitConverter.GetBytes((int)start).CopyTo(smplChunk, 52); // write loop start point at byte offset 52
-                BitConverter.GetBytes((int)end).CopyTo(smplChunk, 56); // write loop end point at byte offset 56
+                var toRead = (int)Math.Min(buffer.Length, count);
+                source.ReadExactly(buffer, 0, toRead);
+                destination.Write(buffer, 0, toRead);
+                count -= toRead;
+            }
+        }
+
+        private static AudioLoopPoints NormalizeLoop(AudioLoopPoints points, double durationSeconds)
+        {
+            var start = Clamp(points.StartSeconds, 0, durationSeconds);
+            var end = Clamp(points.EndSeconds, 0, durationSeconds);
+            if (end <= start)
+            {
+                start = 0;
+                end = durationSeconds;
             }
 
-            var isInPlace = string.Equals(
-                Path.GetFullPath(inputPath),
-                Path.GetFullPath(outputPath),
-                StringComparison.OrdinalIgnoreCase);
-
-            if (isInPlace)
+            return new AudioLoopPoints
             {
-                using var outputStream = new FileStream(outputPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-                outputStream.Position = outputStream.Length;
-                outputStream.Write(smplChunk, 0, smplChunk.Length);
-                WriteRiffFileSize(outputStream, riffIndex + 4, outputStream.Length);
-                return;
-            }
+                IsEnabled = true,
+                StartSeconds = start,
+                EndSeconds = end
+            };
+        }
 
-            using (var inputStream = File.OpenRead(inputPath))
-            using (var outputStream = File.Create(outputPath))
-            {
-                inputStream.CopyTo(outputStream);
-                outputStream.Write(smplChunk, 0, smplChunk.Length);
-                WriteRiffFileSize(outputStream, riffIndex + 4, outputStream.Length);
-            }
+        private static byte[] CreateCueChunk(uint sampleOffset)
+        {
+            var bytes = new byte[CueChunkLength];
+            Encoding.ASCII.GetBytes(CueId).CopyTo(bytes, 0);
+            BitConverter.GetBytes(CueChunkDataLength).CopyTo(bytes, 4);
+            BitConverter.GetBytes(1).CopyTo(bytes, 8);   // dwCuePoints
+            // Cue point:
+            BitConverter.GetBytes(1).CopyTo(bytes, 12);  // dwName (unique id)
+            BitConverter.GetBytes(sampleOffset).CopyTo(bytes, 16); // dwPosition
+            Encoding.ASCII.GetBytes("data").CopyTo(bytes, 20);     // fccChunk
+            BitConverter.GetBytes(0).CopyTo(bytes, 24);  // dwChunkStart
+            BitConverter.GetBytes(0).CopyTo(bytes, 28);  // dwBlockStart
+            BitConverter.GetBytes(sampleOffset).CopyTo(bytes, 32); // dwSampleOffset (loop point)
+            return bytes;
         }
 
         private static void WriteRiffFileSize(Stream stream, long fileSizeIndex, long outputLength)
         {
             stream.Position = fileSizeIndex;
-            int fileSize = (int)(outputLength - 8); // get final length of wave file, minus 8 bytes to not include the RIFF chunk header itself
+            int fileSize = (int)(outputLength - 8);
             Span<byte> fileSizeBytes = stackalloc byte[4];
-            BitConverter.GetBytes(fileSize).CopyTo(fileSizeBytes); // write new file length
+            BitConverter.GetBytes(fileSize).CopyTo(fileSizeBytes);
             stream.Write(fileSizeBytes);
+        }
+
+        private static long SecondsToSamples(double seconds, int sampleRate)
+            => (long)Math.Round(seconds * sampleRate, MidpointRounding.AwayFromZero);
+
+        private static double SamplesToSeconds(ulong samples, int sampleRate)
+            => samples / (double)sampleRate;
+
+        private static double Clamp(double value, double min, double max)
+            => Math.Min(Math.Max(value, min), max);
+
+        private static long Clamp(long value, long min, long max)
+            => Math.Min(Math.Max(value, min), max);
+
+        private readonly record struct RiffChunk(string Id, long HeaderOffset, long DataOffset, long DataSize);
+
+        private sealed class WaveLayout
+        {
+            public int SampleRate { get; init; }
+            public double DurationSeconds { get; init; }
+            public long TotalSamples { get; init; }
+            public bool IsCompressed { get; init; }
         }
     }
 }
