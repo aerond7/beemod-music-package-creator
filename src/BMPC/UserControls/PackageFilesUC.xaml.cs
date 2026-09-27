@@ -87,7 +87,7 @@ namespace BMPC.UserControls
                     Description = dialog.ViewModel.MusicDescription,
                     Authors = dialog.ViewModel.MusicAuthors,
                     Group = null,
-                    Icon = dialog.ViewModel.PreviewImage,
+                    Icon = dialog.ViewModel.IconFilePath,
                     BaseMusicPath = dialog.ViewModel.BaseMusicFilePath,
                     BaseLoopPoints = dialog.ViewModel.BaseLoopPoints?.Clone(),
                     TractorBeamPath = File.Exists(dialog.ViewModel.FunnelMusicFilePath) ? dialog.ViewModel.FunnelMusicFilePath : null,
@@ -119,7 +119,7 @@ namespace BMPC.UserControls
                     Description = dialog.ViewModel.MusicDescription,
                     Authors = dialog.ViewModel.MusicAuthors,
                     Group = null,
-                    Icon = dialog.ViewModel.PreviewImage,
+                    Icon = dialog.ViewModel.IconFilePath,
                     BaseMusicPath = dialog.ViewModel.BaseMusicFilePath,
                     BaseLoopPoints = dialog.ViewModel.BaseLoopPoints?.Clone(),
                     TractorBeamPath = string.IsNullOrWhiteSpace(funnelPath) || funnelPath == AddSongDialogViewModel.NoFileSelectedLabel ? null : funnelPath,
@@ -127,7 +127,14 @@ namespace BMPC.UserControls
                     UseDefaultTractorBeamMusic = dialog.ViewModel.ApplyDefaultFunnelMusic,
                     SyncTractorBeamMusic = dialog.ViewModel.SyncFunnelMusic,
                     SpeedGelSfxFullPaths = dialog.ViewModel.SelectedSpeedGelSfxFullPaths,
-                    BounceGelSfxFullPaths = dialog.ViewModel.SelectedBounceGelSfxFullPaths
+                    BounceGelSfxFullPaths = dialog.ViewModel.SelectedBounceGelSfxFullPaths,
+                    PackagedAssets = item.PackagedAssets,
+                    PackagedIconPath = item.PackagedIconPath,
+                    BaseAudioReplaced = dialog.ViewModel.BaseAudioReplaced,
+                    TractorBeamAudioReplaced = dialog.ViewModel.TractorBeamAudioReplaced,
+                    SpeedGelSfxReplaced = dialog.ViewModel.SpeedGelSfxReplaced,
+                    BounceGelSfxReplaced = dialog.ViewModel.BounceGelSfxReplaced,
+                    IconReplaced = dialog.ViewModel.IconReplaced
                 };
 
                 SongItems.Remove(item);

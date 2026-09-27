@@ -118,6 +118,7 @@
                    x:Name="StatusText"
                    Margin="2,6,0,0"
                    FontSize="12"
+                   TextWrapping="Wrap"
                    Foreground="{DynamicResource MaterialDesign.Brush.ForegroundLight}" />
     </Grid>
 </UserControl>

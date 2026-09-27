@@ -6,10 +6,15 @@
              xmlns:local="clr-namespace:BMPC.UserControls"
              mc:Ignorable="d" 
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+             xmlns:converters="clr-namespace:BMPC.Converters"
              TextElement.FontWeight="Medium"
              TextElement.FontSize="14"
              FontFamily="{materialDesign:MaterialDesignFont}"
              d:DesignHeight="120" d:DesignWidth="800">
+
+    <UserControl.Resources>
+        <converters:ImagePathToSourceConverter x:Key="ImagePathToSource" />
+    </UserControl.Resources>
 
     <Grid Margin="8">
         <Grid.ColumnDefinitions>
@@ -21,7 +26,7 @@
                Width="64"
                Height="64"
                Margin="8"
-               Source="{Binding Icon}"/>
+               Source="{Binding DisplayIcon, Converter={StaticResource ImagePathToSource}}"/>
 
         <Grid Grid.Column="1" Margin="8">
             <Grid.ColumnDefinitions>

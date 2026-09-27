@@ -71,12 +71,28 @@ namespace BMPC.Core.Packaging
                 progress.Report($"Using cached audio for {song.Name}...");
                 PackageArchiveEntryExtractor.Extract(
                     cache.OldBeePackPath!,
-                    $"resources/music_samp/bmpc_sample_{cache.OldBaseFileName}.mp3",
+                    PackageAssetNames.GetSampleAudioEntryPath(cache.OldBaseFileName),
                     Path.Combine(context.BeeSamplePath, names.BaseSampleFileName));
                 PackageArchiveEntryExtractor.Extract(
                     cache.OldBeePackPath!,
-                    $"resources/sound/music/bmpc_{cache.OldBaseFileName}.wav",
+                    PackageAssetNames.GetGameAudioEntryPath(cache.OldBaseFileName),
                     Path.Combine(context.GameMusicPath, names.BaseGameFileName));
+                return;
+            }
+
+            if (cache.IsBaseSourcePackaged(song))
+            {
+                progress.Report($"Re-encoding packaged audio for {song.Name}...");
+                PackageArchiveEntryExtractor.Extract(
+                    cache.OldBeePackPath!,
+                    PackageAssetNames.GetSampleAudioEntryPath(cache.OldBaseFileName),
+                    Path.Combine(context.BeeSamplePath, names.BaseSampleFileName));
+                this.ReencodeGameAudioFromPackage(
+                    cache.OldBeePackPath!,
+                    PackageAssetNames.GetGameAudioEntryPath(cache.OldBaseFileName),
+                    Path.Combine(context.GameMusicPath, names.BaseGameFileName),
+                    song.BaseLoopPoints,
+                    "Failed to re-encode packaged base music for game");
                 return;
             }
 
@@ -108,12 +124,28 @@ namespace BMPC.Core.Packaging
                 progress.Report("Using cached tractor beam audio...");
                 PackageArchiveEntryExtractor.Extract(
                     cache.OldBeePackPath!,
-                    $"resources/music_samp/bmpc_sample_{cache.OldFunnelFileName}.mp3",
+                    PackageAssetNames.GetSampleAudioEntryPath(cache.OldFunnelFileName),
                     Path.Combine(context.BeeSamplePath, names.FunnelSampleFileName));
                 PackageArchiveEntryExtractor.Extract(
                     cache.OldBeePackPath!,
-                    $"resources/sound/music/bmpc_{cache.OldFunnelFileName}.wav",
+                    PackageAssetNames.GetGameAudioEntryPath(cache.OldFunnelFileName),
                     Path.Combine(context.GameMusicPath, names.FunnelGameFileName));
+                return;
+            }
+
+            if (cache.IsTractorBeamSourcePackaged(song))
+            {
+                progress.Report("Re-encoding packaged tractor beam audio...");
+                PackageArchiveEntryExtractor.Extract(
+                    cache.OldBeePackPath!,
+                    PackageAssetNames.GetSampleAudioEntryPath(cache.OldFunnelFileName),
+                    Path.Combine(context.BeeSamplePath, names.FunnelSampleFileName));
+                this.ReencodeGameAudioFromPackage(
+                    cache.OldBeePackPath!,
+                    PackageAssetNames.GetGameAudioEntryPath(cache.OldFunnelFileName),
+                    Path.Combine(context.GameMusicPath, names.FunnelGameFileName),
+                    song.TractorBeamLoopPoints,
+                    "Failed to re-encode packaged funnel music for game");
                 return;
             }
 
@@ -159,6 +191,28 @@ namespace BMPC.Core.Packaging
             }
 
             return writtenFiles;
+        }
+
+        // Packaged game audio shares the original timeline (it is only trimmed at the old loop end),
+        // so new loop points apply to it directly as long as they stay within its length.
+        private void ReencodeGameAudioFromPackage(
+            string oldBeePackPath,
+            string entryPath,
+            string outputPath,
+            AudioLoopPoints? loopPoints,
+            string message)
+        {
+            var sourcePath = Path.Combine(Path.GetTempPath(), $"bmpc-{Guid.NewGuid():N}.wav");
+
+            try
+            {
+                PackageArchiveEntryExtractor.Extract(oldBeePackPath, entryPath, sourcePath);
+                ThrowIfFailed(this.audioTransformer.ConvertForGameWav(sourcePath, outputPath, loopPoints), message);
+            }
+            finally
+            {
+                BmpcMetadataStore.DeleteIfExists(sourcePath);
+            }
         }
 
         private static void ThrowIfFailed(AudioTransformResult result, string message)

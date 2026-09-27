@@ -20,5 +20,14 @@ namespace BMPC.Core.Packaging
         public string FunnelGameFileName => $"bmpc_{this.FunnelFileName}.wav";
         public string IconFileName => $"bmpc_{this.BaseFileName}_icon{this.IconExtension}";
         public string IconLargeFileName => $"bmpc_{this.BaseFileName}_iconlarge{this.IconExtension}";
+
+        public static string GetSampleAudioEntryPath(string fileName)
+            => $"resources/music_samp/bmpc_sample_{fileName}.mp3";
+
+        public static string GetGameAudioEntryPath(string fileName)
+            => $"resources/sound/music/bmpc_{fileName}.wav";
+
+        public static string GetBeeResourceEntryPath(string fileName)
+            => $"resources/BEE2/{fileName}";
     }
 }

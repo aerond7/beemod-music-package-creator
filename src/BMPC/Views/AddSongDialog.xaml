@@ -6,6 +6,7 @@
         xmlns:local="clr-namespace:BMPC.Views"
         xmlns:localControls="clr-namespace:BMPC.UserControls"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+        xmlns:converters="clr-namespace:BMPC.Converters"
         mc:Ignorable="d"
         TextElement.FontWeight="Medium"
         TextElement.FontSize="14"
@@ -16,6 +17,10 @@
         Height="820"
         Width="900"
         Background="{DynamicResource MaterialDesign.Brush.Background}">
+
+    <Window.Resources>
+        <converters:ImagePathToSourceConverter x:Key="ImagePathToSource" />
+    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -42,7 +47,7 @@
                         CornerRadius="4">
                     <Border.Background>
                         <ImageBrush x:Name="ImgBrushIcon"
-                                    ImageSource="{Binding PreviewImage}"
+                                    ImageSource="{Binding PreviewImage, Converter={StaticResource ImagePathToSource}}"
                                     Stretch="Uniform" />
                     </Border.Background>
 

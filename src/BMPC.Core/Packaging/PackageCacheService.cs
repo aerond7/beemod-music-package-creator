@@ -50,34 +50,47 @@ namespace BMPC.Core.Packaging
         public string OldBaseFileName { get; }
         public string OldFunnelFileName { get; }
 
-        public bool IsBaseAudioCached(PackageSong song)
+        /// <summary>Whether base audio comes from the old package rather than disk (loop points may differ).</summary>
+        public bool IsBaseSourcePackaged(PackageSong song)
             => this.OldBeePackPath != null
                 && this.OldSong != null
-                && song.BaseFullPath == this.OldSong.BaseFullPath
-                && AreLoopPointsEqual(song.BaseLoopPoints, this.OldSong.BaseLoopPoints);
+                && !song.BaseAudioReplaced
+                && song.BaseFullPath == this.OldSong.BaseFullPath;
+
+        public bool IsBaseAudioCached(PackageSong song)
+            => this.IsBaseSourcePackaged(song)
+                && AreLoopPointsEqual(song.BaseLoopPoints, this.OldSong!.BaseLoopPoints);
+
+        /// <summary>Whether tractor beam audio comes from the old package rather than disk (loop points may differ).</summary>
+        public bool IsTractorBeamSourcePackaged(PackageSong song)
+            => this.OldBeePackPath != null
+                && this.OldSong != null
+                && !song.TractorBeamAudioReplaced
+                && song.TractorBeamFullPath != null
+                && song.TractorBeamFullPath == this.OldSong.TractorBeamFullPath;
 
         public bool IsTractorBeamCached(PackageSong song)
-            => this.OldBeePackPath != null
-                && this.OldSong != null
-                && song.TractorBeamFullPath != null
-                && song.TractorBeamFullPath == this.OldSong.TractorBeamFullPath
-                && AreLoopPointsEqual(song.TractorBeamLoopPoints, this.OldSong.TractorBeamLoopPoints);
+            => this.IsTractorBeamSourcePackaged(song)
+                && AreLoopPointsEqual(song.TractorBeamLoopPoints, this.OldSong!.TractorBeamLoopPoints);
 
         public bool IsIconCached(PackageSong song)
             => this.OldBeePackPath != null
                 && this.OldSong != null
+                && !song.IconReplaced
                 && !string.IsNullOrWhiteSpace(song.IconFullPath)
                 && song.IconFullPath == this.OldSong.IconFullPath;
 
         public bool IsSpeedGelSfxCached(PackageSong song, int index)
             => this.OldBeePackPath != null
                 && this.OldSong != null
+                && !song.SpeedGelSfxReplaced
                 && index < this.OldSong.SpeedGelSfxFullPaths.Count
                 && song.SpeedGelSfxFullPaths[index] == this.OldSong.SpeedGelSfxFullPaths[index];
 
         public bool IsBounceGelSfxCached(PackageSong song, int index)
             => this.OldBeePackPath != null
                 && this.OldSong != null
+                && !song.BounceGelSfxReplaced
                 && index < this.OldSong.BounceGelSfxFullPaths.Count
                 && song.BounceGelSfxFullPaths[index] == this.OldSong.BounceGelSfxFullPaths[index];
 

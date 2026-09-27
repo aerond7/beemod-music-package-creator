@@ -100,6 +100,77 @@ public class PackageCacheServiceTests
         Assert.False(cache.IsTractorBeamCached(song));
     }
 
+    [Fact]
+    public void CacheFlags_KeepPackagedSourceWhenOnlyLoopPointsChanged()
+    {
+        var service = new PackageCacheService();
+        var songId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        var context = CreateContext(new PackageSong
+        {
+            SongId = songId,
+            Name = "Old Song",
+            BaseFullPath = "base.wav",
+            BaseLoopPoints = new AudioLoopPoints { StartSeconds = 0, EndSeconds = 10 },
+            TractorBeamFullPath = "tb.wav"
+        });
+        var song = new PackageSong
+        {
+            SongId = songId,
+            Name = "Current",
+            BaseFullPath = "base.wav",
+            BaseLoopPoints = new AudioLoopPoints { StartSeconds = 2, EndSeconds = 10 },
+            TractorBeamFullPath = "tb.wav",
+            TractorBeamLoopPoints = new AudioLoopPoints { StartSeconds = 1, EndSeconds = 8 }
+        };
+
+        var cache = service.GetSongCache(context, song);
+
+        Assert.True(cache.IsBaseSourcePackaged(song));
+        Assert.True(cache.IsTractorBeamSourcePackaged(song));
+    }
+
+    [Fact]
+    public void CacheFlags_IgnorePackagedAudioForReplacedTracks()
+    {
+        var service = new PackageCacheService();
+        var songId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        var context = CreateContext(new PackageSong
+        {
+            SongId = songId,
+            Name = "Old Song",
+            BaseFullPath = "base.wav",
+            TractorBeamFullPath = "tb.wav",
+            SpeedGelSfxFullPaths = ["speed.wav"],
+            BounceGelSfxFullPaths = ["bounce.wav"],
+            IconFullPath = "icon.png"
+        });
+        var song = new PackageSong
+        {
+            SongId = songId,
+            Name = "Current",
+            BaseFullPath = "base.wav",
+            TractorBeamFullPath = "tb.wav",
+            SpeedGelSfxFullPaths = ["speed.wav"],
+            BounceGelSfxFullPaths = ["bounce.wav"],
+            IconFullPath = "icon.png",
+            BaseAudioReplaced = true,
+            TractorBeamAudioReplaced = true,
+            SpeedGelSfxReplaced = true,
+            BounceGelSfxReplaced = true,
+            IconReplaced = true
+        };
+
+        var cache = service.GetSongCache(context, song);
+
+        Assert.False(cache.IsBaseSourcePackaged(song));
+        Assert.False(cache.IsBaseAudioCached(song));
+        Assert.False(cache.IsTractorBeamSourcePackaged(song));
+        Assert.False(cache.IsTractorBeamCached(song));
+        Assert.False(cache.IsSpeedGelSfxCached(song, 0));
+        Assert.False(cache.IsBounceGelSfxCached(song, 0));
+        Assert.False(cache.IsIconCached(song));
+    }
+
     private static PackageImportContext CreateContext(params PackageSong[] oldSongs)
         => new()
         {
