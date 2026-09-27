@@ -1,6 +1,7 @@
 ﻿using BMPC.Commands;
 using BMPC.Core;
 using BMPC.Core.Models;
+using BMPC.Core.Packaging;
 using BMPC.Core.Services;
 using BMPC.Interfaces;
 using BMPC.Models;
@@ -180,23 +181,30 @@ namespace BMPC.ViewModels
                 _existingPackageId = existingPackage.Id;
                 var editData = existingPackage.EditData;
 
-                var initialSongs = editData.Songs.Select(s => new SongItemModel
+                var initialSongs = editData.Songs.Select(s =>
                 {
-                    Guid = s.SongId ?? Guid.NewGuid(),
-                    Name = s.Name,
-                    Description = s.Description,
-                    Authors = s.Authors,
-                    Group = s.Group,
-                    Icon = s.IconFullPath,
-                    BaseMusicPath = s.BaseFullPath,
-                    BaseLoopPoints = s.BaseLoopPoints?.Clone(),
-                    TractorBeamPath = s.TractorBeamFullPath,
-                    TractorBeamLoopPoints = s.TractorBeamLoopPoints?.Clone(),
-                    UseDefaultTractorBeamMusic = s.UseDefaultTractorBeamMusic,
-                    SyncTractorBeamMusic = s.SyncTractorBeamMusic,
-                    SpeedGelSfxFullPaths = s.SpeedGelSfxFullPaths,
-                    BounceGelSfxFullPaths = s.BounceGelSfxFullPaths
-                });
+                    var packagedAssets = PackagedSongAssets.Find(existingPackage.Id, s);
+                    return new SongItemModel
+                    {
+                        Guid = s.SongId ?? Guid.NewGuid(),
+                        Name = s.Name,
+                        Description = s.Description,
+                        Authors = s.Authors,
+                        Group = s.Group,
+                        Icon = s.IconFullPath,
+                        BaseMusicPath = s.BaseFullPath,
+                        BaseLoopPoints = s.BaseLoopPoints?.Clone(),
+                        TractorBeamPath = s.TractorBeamFullPath,
+                        TractorBeamLoopPoints = s.TractorBeamLoopPoints?.Clone(),
+                        UseDefaultTractorBeamMusic = s.UseDefaultTractorBeamMusic,
+                        SyncTractorBeamMusic = s.SyncTractorBeamMusic,
+                        SpeedGelSfxFullPaths = s.SpeedGelSfxFullPaths,
+                        BounceGelSfxFullPaths = s.BounceGelSfxFullPaths,
+                        PackagedAssets = packagedAssets,
+                        // Extracted to the app temp directory, which is cleared on startup and exit.
+                        PackagedIconPath = packagedAssets?.ExtractIcon(this.appPaths.TempDirectory)
+                    };
+                }).ToList();
 
                 // When DefaultGroup matches Name it means no explicit group was set (it defaults to the name),
                 // so pass null to leave the group field empty in edit mode.
@@ -429,7 +437,12 @@ namespace BMPC.ViewModels
                                 UseDefaultTractorBeamMusic = item.UseDefaultTractorBeamMusic,
                                 SyncTractorBeamMusic = item.SyncTractorBeamMusic,
                                 SpeedGelSfxFullPaths = item.SpeedGelSfxFullPaths,
-                                BounceGelSfxFullPaths = item.BounceGelSfxFullPaths
+                                BounceGelSfxFullPaths = item.BounceGelSfxFullPaths,
+                                BaseAudioReplaced = item.BaseAudioReplaced,
+                                TractorBeamAudioReplaced = item.TractorBeamAudioReplaced,
+                                SpeedGelSfxReplaced = item.SpeedGelSfxReplaced,
+                                BounceGelSfxReplaced = item.BounceGelSfxReplaced,
+                                IconReplaced = item.IconReplaced
                             });
                         }
 

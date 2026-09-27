@@ -51,13 +51,22 @@ namespace BMPC.UserControls
 
         public event Action<AudioLoopPoints?>? LoopPointsChanged;
 
-        public void LoadAudio(string? selectedFilePath, AudioLoopPoints? initialLoopPoints)
+        /// <param name="isPackagedAudio">
+        /// The file is audio extracted from the package being edited. It is trimmed at the previous
+        /// loop end, so the loop cannot be extended past it.
+        /// </param>
+        public void LoadAudio(string? selectedFilePath, AudioLoopPoints? initialLoopPoints, bool isPackagedAudio = false)
         {
             StopPlayback();
 
             if (string.IsNullOrWhiteSpace(selectedFilePath) || !File.Exists(selectedFilePath))
             {
-                ClearAudio();
+                ClearAudio(notify: !isPackagedAudio);
+                if (isPackagedAudio)
+                {
+                    StatusText.Text = "Audio could not be loaded from the package.";
+                }
+
                 return;
             }
 
@@ -71,19 +80,27 @@ namespace BMPC.UserControls
                 this.playheadSeconds = this.loopPoints.StartSeconds;
                 this.peaks = ReadPeaks(selectedFilePath);
                 EmptyText.Visibility = Visibility.Collapsed;
-                StatusText.Text = BuildStatusText(info);
+                StatusText.Text = isPackagedAudio
+                    ? $"Editing packaged audio (trimmed at previous loop end). {BuildStatusText(info)}"
+                    : BuildStatusText(info);
                 UpdateTextBoxes();
                 DrawEditor();
-                LoopPointsChanged?.Invoke(this.loopPoints.Clone());
+
+                // Packaged audio length can differ slightly from the saved loop end, so keep the saved
+                // loop points untouched until the user edits them to avoid a needless re-encode.
+                if (!isPackagedAudio)
+                {
+                    LoopPointsChanged?.Invoke(this.loopPoints.Clone());
+                }
             }
             catch (Exception ex)
             {
-                ClearAudio();
+                ClearAudio(notify: !isPackagedAudio);
                 StatusText.Text = ex.Message;
             }
         }
 
-        private void ClearAudio()
+        private void ClearAudio(bool notify = true)
         {
             this.filePath = null;
             this.durationSeconds = 0;
@@ -104,7 +121,11 @@ namespace BMPC.UserControls
             EndTextBox.Text = "";
             WaveCanvas.Children.Clear();
             OverlayCanvas.Children.Clear();
-            LoopPointsChanged?.Invoke(null);
+
+            if (notify)
+            {
+                LoopPointsChanged?.Invoke(null);
+            }
         }
 
         private float[] ReadPeaks(string selectedFilePath)
@@ -488,7 +509,7 @@ namespace BMPC.UserControls
             UpdateOverlayVisuals();
         }
 
-        private void StopPlayback()
+        public void StopPlayback()
         {
             this.playbackTimer.Stop();
             this.playbackOutput?.Stop();

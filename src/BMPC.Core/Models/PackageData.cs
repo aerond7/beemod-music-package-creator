@@ -1,4 +1,5 @@
 using BMPC.Audio.Objects;
+using System.Text.Json.Serialization;
 
 namespace BMPC.Core.Models
 {
@@ -27,5 +28,22 @@ namespace BMPC.Core.Models
         public bool SyncTractorBeamMusic { get; set; }
         public List<string> SpeedGelSfxFullPaths { get; set; } = new List<string>();
         public List<string> BounceGelSfxFullPaths { get; set; } = new List<string>();
+
+        // Set when the user selected new files for the asset while editing. Replaced assets are read
+        // from disk; all other assets of an edited song are taken from the existing package.
+        [JsonIgnore]
+        public bool BaseAudioReplaced { get; set; }
+
+        [JsonIgnore]
+        public bool TractorBeamAudioReplaced { get; set; }
+
+        [JsonIgnore]
+        public bool SpeedGelSfxReplaced { get; set; }
+
+        [JsonIgnore]
+        public bool BounceGelSfxReplaced { get; set; }
+
+        [JsonIgnore]
+        public bool IconReplaced { get; set; }
     }
 }
