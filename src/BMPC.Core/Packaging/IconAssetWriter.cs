@@ -15,12 +15,12 @@ namespace BMPC.Core.Packaging
                 var oldIconExt = Path.GetExtension(cache.OldSong!.IconFullPath);
                 PackageArchiveEntryExtractor.Extract(
                     cache.OldBeePackPath!,
-                    $"resources/BEE2/bmpc_{cache.OldBaseFileName}_icon{oldIconExt}",
+                    PackageAssetNames.GetBeeResourceEntryPath($"bmpc_{cache.OldBaseFileName}_icon{oldIconExt}"),
                     Path.Combine(context.BeeResourcesPath, names.IconFileName),
                     optional: true);
                 PackageArchiveEntryExtractor.Extract(
                     cache.OldBeePackPath!,
-                    $"resources/BEE2/bmpc_{cache.OldBaseFileName}_iconlarge{oldIconExt}",
+                    PackageAssetNames.GetBeeResourceEntryPath($"bmpc_{cache.OldBaseFileName}_iconlarge{oldIconExt}"),
                     Path.Combine(context.BeeResourcesPath, names.IconLargeFileName),
                     optional: true);
                 return;

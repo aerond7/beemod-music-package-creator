@@ -1,6 +1,7 @@
 ﻿using BMPC.Commands;
 using BMPC.Audio.Objects;
 using BMPC.Core;
+using BMPC.Core.Packaging;
 using BMPC.Models;
 using BMPC.Mvvm;
 using BMPC.Properties;
@@ -55,6 +56,9 @@ namespace BMPC.ViewModels
                 NotifyPropertyChanged(nameof(PreviewImage));
             }
         }
+
+        /// <summary>Source path of the icon; differs from <see cref="PreviewImage"/> when the packaged icon is shown.</summary>
+        public string IconFilePath { get; private set; } = string.Empty;
 
         /// <summary>Sentinel value displayed when no audio file has been selected.</summary>
         public const string NoFileSelectedLabel = "No file selected.";
@@ -221,6 +225,16 @@ namespace BMPC.ViewModels
             }
         }
 
+        /// <summary>Assets already written into the package being edited; used instead of the files on disk.</summary>
+        public PackagedSongAssets? PackagedAssets { get; }
+
+        // Set when new files were selected for the asset, so it is read from disk instead of the package.
+        public bool BaseAudioReplaced { get; private set; }
+        public bool TractorBeamAudioReplaced { get; private set; }
+        public bool SpeedGelSfxReplaced { get; private set; }
+        public bool BounceGelSfxReplaced { get; private set; }
+        public bool IconReplaced { get; private set; }
+
         public event Action? RequestClose;
         public event Action<bool?>? RequestUpdateDialogResult;
 
@@ -232,12 +246,13 @@ namespace BMPC.ViewModels
         public ICommand ClearSfxCommand { get; private set; }
 
         private readonly bool _isEditMode;
+        private readonly IReadOnlyList<string> otherSongNames;
         private readonly IFileDialogService fileDialogService;
         private readonly IMessageDialogService messageDialogService;
         private readonly IAppPaths appPaths;
 
-        public AddSongDialogViewModel(SongItemModel? existingModel = null)
-            : this(new FileDialogService(), new MessageDialogService(), new AppPaths(), existingModel)
+        public AddSongDialogViewModel(SongItemModel? existingModel = null, IEnumerable<string>? otherSongNames = null)
+            : this(new FileDialogService(), new MessageDialogService(), new AppPaths(), existingModel, otherSongNames)
         {
         }
 
@@ -245,11 +260,13 @@ namespace BMPC.ViewModels
             IFileDialogService fileDialogService,
             IMessageDialogService messageDialogService,
             IAppPaths appPaths,
-            SongItemModel? existingModel = null)
+            SongItemModel? existingModel = null,
+            IEnumerable<string>? otherSongNames = null)
         {
             this.fileDialogService = fileDialogService;
             this.messageDialogService = messageDialogService;
             this.appPaths = appPaths;
+            this.otherSongNames = otherSongNames?.ToList() ?? new List<string>();
             this.SelectIconCommand = new RelayCommand(IconSelectCommand);
             this.SelectSoundFileCommand = new RelayCommand(SelectSoundFile);
             this.CancelCommand = new RelayCommand(CancelAddingCommand);
@@ -263,10 +280,17 @@ namespace BMPC.ViewModels
 
             if (existingModel is not null)
             {
+                this.PackagedAssets = existingModel.PackagedAssets;
+                this.BaseAudioReplaced = existingModel.BaseAudioReplaced;
+                this.TractorBeamAudioReplaced = existingModel.TractorBeamAudioReplaced;
+                this.SpeedGelSfxReplaced = existingModel.SpeedGelSfxReplaced;
+                this.BounceGelSfxReplaced = existingModel.BounceGelSfxReplaced;
+                this.IconReplaced = existingModel.IconReplaced;
                 this.MusicName = existingModel.Name;
                 this.MusicDescription = existingModel.Description;
                 this.MusicAuthors = existingModel.Authors;
-                this.PreviewImage = existingModel.Icon;
+                this.IconFilePath = existingModel.Icon;
+                this.PreviewImage = existingModel.DisplayIcon ?? string.Empty;
                 this.BaseMusicFilePath = existingModel.BaseMusicPath;
                 this.BaseLoopPoints = existingModel.BaseLoopPoints?.Clone();
                 this.FunnelMusicFilePath = existingModel.TractorBeamPath ?? "No file selected.";
@@ -288,6 +312,7 @@ namespace BMPC.ViewModels
             }
 
             var fileInfo = new FileInfo(path);
+            IconFilePath = fileInfo.FullName;
             PreviewImage = fileInfo.FullName;
         }
 
@@ -309,6 +334,23 @@ namespace BMPC.ViewModels
             if (string.IsNullOrWhiteSpace(MusicAuthors))
             {
                 this.messageDialogService.ShowWarning("Enter music authors");
+                return;
+            }
+
+            var asciiError = Utils.GetNonAsciiTextError("Music name", MusicName)
+                ?? Utils.GetNonAsciiTextError("Description", MusicDescription)
+                ?? Utils.GetNonAsciiTextError("Authors", MusicAuthors);
+            if (asciiError != null)
+            {
+                this.messageDialogService.ShowWarning(asciiError);
+                return;
+            }
+
+            var nameError = Utils.GetEmptySafeNameError("Music name", MusicName)
+                ?? Utils.GetDuplicateSongNameError(MusicName, this.otherSongNames);
+            if (nameError != null)
+            {
+                this.messageDialogService.ShowWarning(nameError);
                 return;
             }
 
@@ -336,6 +378,8 @@ namespace BMPC.ViewModels
             var fileName = this.fileDialogService.OpenFile("Select music icon", "Image Files (*.png, *.jpg, *.jpeg)|*.png;*.jpg;*.jpeg");
             if (fileName != null)
             {
+                IconReplaced = true;
+                IconFilePath = fileName;
                 PreviewImage = fileName;
             }
         }
@@ -358,17 +402,20 @@ namespace BMPC.ViewModels
             {
                 switch (type)
                 {
+                    // Flag and loop reset must precede the path change, which reloads the loop editor.
                     case "base":
                         {
-                            BaseMusicFilePath = fileName;
+                            BaseAudioReplaced = true;
                             BaseLoopPoints = null;
+                            BaseMusicFilePath = fileName;
                             break;
                         }
 
                     case "funnel":
                         {
-                            FunnelMusicFilePath = fileName;
+                            TractorBeamAudioReplaced = true;
                             FunnelLoopPoints = null;
+                            FunnelMusicFilePath = fileName;
                             break;
                         }
                 }
@@ -395,12 +442,14 @@ namespace BMPC.ViewModels
                 {
                     case "speed":
                         {
+                            SpeedGelSfxReplaced = true;
                             SetSpeedGelSfxPaths(fileNames.ToList());
                             break;
                         }
 
                     case "bounce":
                         {
+                            BounceGelSfxReplaced = true;
                             SetBounceGelSfxPaths(fileNames.ToList());
                             break;
                         }

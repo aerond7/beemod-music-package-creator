@@ -58,10 +58,8 @@ namespace BMPC
             Utils.CreateDirectoryIfMissing(appPaths.ResourcesDirectory);
             Utils.CreateDirectoryIfMissing(appPaths.BeePackagesDirectory);
 
-            if (Directory.Exists(appPaths.TempDirectory))
-            {
-                Directory.Delete(appPaths.TempDirectory, true);
-            }
+            // Best-effort: locked leftovers are skipped and removed on a later cleanup.
+            Utils.TryDeleteDirectory(appPaths.TempDirectory);
             Utils.CreateDirectoryIfMissing(appPaths.TempDirectory);
 
             var settings = new SettingsService().Load();
@@ -84,9 +82,9 @@ namespace BMPC
 
                 await AppHost.StopAsync();
                 var appPaths = AppHost.Services.GetService<IAppPaths>();
-                if (appPaths != null && Directory.Exists(appPaths.TempDirectory))
+                if (appPaths != null)
                 {
-                    Directory.Delete(appPaths.TempDirectory, true);
+                    Utils.TryDeleteDirectory(appPaths.TempDirectory);
                 }
             }
 

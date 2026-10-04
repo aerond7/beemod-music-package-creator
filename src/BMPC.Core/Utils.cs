@@ -13,6 +13,58 @@ namespace BMPC.Core
             }
         }
 
+        /// <summary>
+        /// Best-effort recursive delete. Entries that cannot be deleted (e.g. files locked by another process)
+        /// are skipped instead of throwing.
+        /// </summary>
+        /// <returns><c>true</c> if the directory no longer exists; <c>false</c> if anything was left behind.</returns>
+        public static bool TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (!Directory.Exists(path))
+                {
+                    return true;
+                }
+
+                // Never follow links (symlinks/junctions) into their targets; only remove the link itself.
+                if (new DirectoryInfo(path).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    Directory.Delete(path);
+                    return true;
+                }
+
+                var success = true;
+                foreach (var file in Directory.GetFiles(path))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        success = false;
+                    }
+                }
+
+                foreach (var directory in Directory.GetDirectories(path))
+                {
+                    success &= TryDeleteDirectory(directory);
+                }
+
+                if (success)
+                {
+                    Directory.Delete(path);
+                }
+
+                return success;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
         public static string ConvertToSafeFileName(string val)
         {
             string result = val;
@@ -30,6 +82,62 @@ namespace BMPC.Core
                            .Trim();
 
             return result;
+        }
+
+        /// <summary>
+        /// Package IDs and song asset file names are built from <see cref="ConvertToSafeFileName"/>,
+        /// so a name must keep at least one character after conversion.
+        /// </summary>
+        /// <returns>A user-facing error message, or <c>null</c> if <paramref name="value"/> can be used.</returns>
+        public static string? GetEmptySafeNameError(string fieldName, string value)
+        {
+            if (ConvertToSafeFileName(value).Length > 0) return null;
+
+            return $"{fieldName} must contain letters or numbers. Spaces and symbols like . , ; ' ? * : / \\ \" < > | are removed from file names, so a name made only of them can't be used.";
+        }
+
+        /// <summary>
+        /// Songs in one package must have different <see cref="ConvertToSafeFileName"/> results, otherwise their files overwrite each other.
+        /// </summary>
+        /// <returns>A user-facing error message, or <c>null</c> if no name in <paramref name="otherNames"/> conflicts with <paramref name="name"/>.</returns>
+        public static string? GetDuplicateSongNameError(string name, IEnumerable<string> otherNames)
+        {
+            var safeName = ConvertToSafeFileName(name);
+            var conflict = otherNames.FirstOrDefault(other => ConvertToSafeFileName(other) == safeName);
+            if (conflict == null) return null;
+
+            return $"The song name \"{name}\" is too similar to \"{conflict}\", which is already in this package. Song names must differ by more than spaces, letter case and symbols like . , ; ' ? * : / \\ \" < > |.";
+        }
+
+        /// <summary>
+        /// Returns the first non-ASCII character (or surrogate pair) in <paramref name="value"/>, or <c>null</c> if there is none.
+        /// </summary>
+        public static string? FindNonAsciiCharacter(string? value)
+        {
+            if (value == null) return null;
+
+            foreach (var rune in value.EnumerateRunes())
+            {
+                if (!rune.IsAscii)
+                {
+                    return rune.ToString();
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// BEE2 can't read non-ASCII text in info.txt (it shows <see cref="EscapeString"/>'s <c>\uXXXX</c> escapes as-is),
+        /// so text written there must be ASCII.
+        /// </summary>
+        /// <returns>A user-facing error message, or <c>null</c> if <paramref name="value"/> is ASCII only.</returns>
+        public static string? GetNonAsciiTextError(string fieldName, string? value)
+        {
+            var character = FindNonAsciiCharacter(value);
+            if (character == null) return null;
+
+            return $"{fieldName} contains \"{character}\", which BEEmod can't display. Use only English letters, numbers and basic symbols (no accented letters, emoji or other special characters).";
         }
 
         public static string EscapeString(string input)

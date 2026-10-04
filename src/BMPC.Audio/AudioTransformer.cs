@@ -18,21 +18,10 @@ namespace BMPC.Audio
             {
                 tempPcmPath = Path.Combine(Path.GetTempPath(), $"bmpc-{Guid.NewGuid():N}.wav");
 
-                using var reader = new AudioFileReader(inputFilePath);
-
-                // resample to 44100Hz if necessary
-                var resampler = new WdlResamplingSampleProvider(reader, DesiredSampleRate);
-
-                if (reader.WaveFormat.SampleRate == DesiredSampleRate && reader.WaveFormat.Channels == 2)
-                {
-                    resampler = null; // skip resampling if already desired sample rate and stereo
-                }
-
-                // convert to stereo if needed
-                ISampleProvider stereo = resampler == null ? reader : resampler.ToStereo();
+                using var reader = new AudioSourceReader(inputFilePath);
 
                 var outFormat = new WaveFormat(DesiredSampleRate, 16, 2);
-                var waveProvider = new SampleToWaveProvider16(stereo);
+                var waveProvider = new SampleToWaveProvider16(ToStereo44100(reader));
 
                 // Source has no loop-end; it plays to the end of the audio data and loops back
                 // to the cue point. So a loop end is realized by trimming the PCM here, before
@@ -120,9 +109,12 @@ namespace BMPC.Audio
         {
             try
             {
-                using (var reader = new AudioFileReader(inputFilePath))
+                using (var reader = new AudioSourceReader(inputFilePath))
                 {
-                    MediaFoundationEncoder.EncodeToMp3(reader, outputFilePath, 64000); // 64kbps is enough for a sample
+                    // The MP3 encoder only accepts a few sample rates, so encode the same
+                    // 44100Hz 16-bit stereo audio that goes into the game WAV.
+                    var waveProvider = new SampleToWaveProvider16(ToStereo44100(reader));
+                    MediaFoundationEncoder.EncodeToMp3(waveProvider, outputFilePath, 64000); // 64kbps is enough for a sample
                 }
             }
             catch (Exception ex)
@@ -138,6 +130,32 @@ namespace BMPC.Audio
             {
                 IsSuccessful = true
             };
+        }
+
+        // Playback devices and the game only take mono or stereo, so multichannel audio
+        // (for example 5.1) is mixed down to stereo. Mono and stereo pass through unchanged.
+        public static ISampleProvider DownmixToStereo(AudioSourceReader reader)
+        {
+            if (reader.WaveFormat.Channels <= 2)
+            {
+                return reader;
+            }
+
+            return new StereoDownmixSampleProvider(reader, reader.ChannelMask);
+        }
+
+        private static ISampleProvider ToStereo44100(AudioSourceReader reader)
+        {
+            var source = DownmixToStereo(reader);
+
+            // resample to 44100Hz if necessary
+            if (source.WaveFormat.SampleRate != DesiredSampleRate)
+            {
+                source = new WdlResamplingSampleProvider(source, DesiredSampleRate);
+            }
+
+            // convert mono to stereo
+            return source.ToStereo();
         }
     }
 }

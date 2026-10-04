@@ -1,4 +1,5 @@
 ﻿using BMPC.Commands;
+using BMPC.Core;
 using BMPC.Interfaces;
 using BMPC.Models;
 using BMPC.Services;
@@ -69,6 +70,30 @@ namespace BMPC.UserControls
                 return new PackageSetupStageValidationResult(false, "You must add at least 1 song to your package");
             }
 
+            // Songs loaded from an existing package may contain text that the add/edit song dialog would now reject.
+            foreach (var song in SongItems)
+            {
+                var asciiError = Utils.GetNonAsciiTextError("Music name", song.Name)
+                    ?? Utils.GetNonAsciiTextError("Description", song.Description)
+                    ?? Utils.GetNonAsciiTextError("Authors", song.Authors)
+                    ?? Utils.GetNonAsciiTextError("Group name", song.Group);
+                if (asciiError != null)
+                {
+                    return new PackageSetupStageValidationResult(false, $"Edit the song \"{song.Name}\" to fix this: {asciiError}");
+                }
+            }
+
+            for (var i = 0; i < SongItems.Count; i++)
+            {
+                var name = SongItems[i].Name;
+                var nameError = Utils.GetEmptySafeNameError("Music name", name)
+                    ?? Utils.GetDuplicateSongNameError(name, SongItems.Take(i).Select(s => s.Name));
+                if (nameError != null)
+                {
+                    return new PackageSetupStageValidationResult(false, $"Edit the song \"{name}\" to fix this: {nameError}");
+                }
+            }
+
             return new PackageSetupStageValidationResult
             {
                 IsValid = true
@@ -77,7 +102,7 @@ namespace BMPC.UserControls
 
         private void AddSongButton_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths);
+            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths, otherSongNames: SongItems.Select(s => s.Name));
 
             if (dialog.ShowDialog() == true)
             {
@@ -87,7 +112,7 @@ namespace BMPC.UserControls
                     Description = dialog.ViewModel.MusicDescription,
                     Authors = dialog.ViewModel.MusicAuthors,
                     Group = null,
-                    Icon = dialog.ViewModel.PreviewImage,
+                    Icon = dialog.ViewModel.IconFilePath,
                     BaseMusicPath = dialog.ViewModel.BaseMusicFilePath,
                     BaseLoopPoints = dialog.ViewModel.BaseLoopPoints?.Clone(),
                     TractorBeamPath = File.Exists(dialog.ViewModel.FunnelMusicFilePath) ? dialog.ViewModel.FunnelMusicFilePath : null,
@@ -107,7 +132,7 @@ namespace BMPC.UserControls
                 return;
             }
 
-            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths, item);
+            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths, item, SongItems.Where(s => s != item).Select(s => s.Name));
             if (dialog.ShowDialog() == true)
             {
                 var index = SongItems.IndexOf(item);
@@ -119,7 +144,7 @@ namespace BMPC.UserControls
                     Description = dialog.ViewModel.MusicDescription,
                     Authors = dialog.ViewModel.MusicAuthors,
                     Group = null,
-                    Icon = dialog.ViewModel.PreviewImage,
+                    Icon = dialog.ViewModel.IconFilePath,
                     BaseMusicPath = dialog.ViewModel.BaseMusicFilePath,
                     BaseLoopPoints = dialog.ViewModel.BaseLoopPoints?.Clone(),
                     TractorBeamPath = string.IsNullOrWhiteSpace(funnelPath) || funnelPath == AddSongDialogViewModel.NoFileSelectedLabel ? null : funnelPath,
@@ -127,7 +152,14 @@ namespace BMPC.UserControls
                     UseDefaultTractorBeamMusic = dialog.ViewModel.ApplyDefaultFunnelMusic,
                     SyncTractorBeamMusic = dialog.ViewModel.SyncFunnelMusic,
                     SpeedGelSfxFullPaths = dialog.ViewModel.SelectedSpeedGelSfxFullPaths,
-                    BounceGelSfxFullPaths = dialog.ViewModel.SelectedBounceGelSfxFullPaths
+                    BounceGelSfxFullPaths = dialog.ViewModel.SelectedBounceGelSfxFullPaths,
+                    PackagedAssets = item.PackagedAssets,
+                    PackagedIconPath = item.PackagedIconPath,
+                    BaseAudioReplaced = dialog.ViewModel.BaseAudioReplaced,
+                    TractorBeamAudioReplaced = dialog.ViewModel.TractorBeamAudioReplaced,
+                    SpeedGelSfxReplaced = dialog.ViewModel.SpeedGelSfxReplaced,
+                    BounceGelSfxReplaced = dialog.ViewModel.BounceGelSfxReplaced,
+                    IconReplaced = dialog.ViewModel.IconReplaced
                 };
 
                 SongItems.Remove(item);

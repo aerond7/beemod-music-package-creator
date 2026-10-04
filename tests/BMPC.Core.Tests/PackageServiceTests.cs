@@ -92,6 +92,31 @@ public class PackageServiceTests
         AssertNoTransactionArtifacts(tempRoot, packageId);
     }
 
+    [Theory]
+    [InlineData("???", "Theme")]
+    [InlineData("Test Package", "My.Song")]
+    [InlineData("Test Package", "???")]
+    public async Task Import_WhenNamesProduceEmptyOrDuplicateFileNames_FailsBeforeWritingFiles(string packageName, string secondSongName)
+    {
+        using var scope = CurrentDirectoryScope.Create();
+        var tempRoot = CreateTempRoot(scope);
+        var data = CreatePackageData(packageName, "My Song");
+        data.Songs.Add(new PackageSong
+        {
+            SongId = Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            Name = secondSongName,
+            Description = "Song description",
+            Authors = "Tester",
+            BaseFullPath = @"C:\missing\source2.wav"
+        });
+        var service = new PackageService(tempRoot);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.Import(data));
+
+        Assert.Empty(Directory.GetDirectories(tempRoot));
+        Assert.False(Directory.Exists(Constants.BeePackagesDirectory) && Directory.EnumerateFileSystemEntries(Constants.BeePackagesDirectory).Any());
+    }
+
     private static string CreateTempRoot(CurrentDirectoryScope scope)
     {
         var tempRoot = Path.Combine(scope.DirectoryPath, "import-temp");
