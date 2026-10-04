@@ -18,7 +18,7 @@ namespace BMPC.Audio
             {
                 tempPcmPath = Path.Combine(Path.GetTempPath(), $"bmpc-{Guid.NewGuid():N}.wav");
 
-                using var reader = new AudioFileReader(inputFilePath);
+                using var reader = new AudioSourceReader(inputFilePath);
 
                 var outFormat = new WaveFormat(DesiredSampleRate, 16, 2);
                 var waveProvider = new SampleToWaveProvider16(ToStereo44100(reader));
@@ -109,7 +109,7 @@ namespace BMPC.Audio
         {
             try
             {
-                using (var reader = new AudioFileReader(inputFilePath))
+                using (var reader = new AudioSourceReader(inputFilePath))
                 {
                     // The MP3 encoder only accepts a few sample rates, so encode the same
                     // 44100Hz 16-bit stereo audio that goes into the game WAV.
@@ -132,15 +132,30 @@ namespace BMPC.Audio
             };
         }
 
-        private static ISampleProvider ToStereo44100(ISampleProvider source)
+        // Playback devices and the game only take mono or stereo, so multichannel audio
+        // (for example 5.1) is mixed down to stereo. Mono and stereo pass through unchanged.
+        public static ISampleProvider DownmixToStereo(AudioSourceReader reader)
         {
-            if (source.WaveFormat.SampleRate == DesiredSampleRate && source.WaveFormat.Channels == 2)
+            if (reader.WaveFormat.Channels <= 2)
             {
-                return source; // skip resampling if already desired sample rate and stereo
+                return reader;
             }
 
-            // resample to 44100Hz and convert to stereo
-            return new WdlResamplingSampleProvider(source, DesiredSampleRate).ToStereo();
+            return new StereoDownmixSampleProvider(reader, reader.ChannelMask);
+        }
+
+        private static ISampleProvider ToStereo44100(AudioSourceReader reader)
+        {
+            var source = DownmixToStereo(reader);
+
+            // resample to 44100Hz if necessary
+            if (source.WaveFormat.SampleRate != DesiredSampleRate)
+            {
+                source = new WdlResamplingSampleProvider(source, DesiredSampleRate);
+            }
+
+            // convert mono to stereo
+            return source.ToStereo();
         }
     }
 }

@@ -27,7 +27,7 @@ namespace BMPC.UserControls
         private AudioLoopPoints? loopPoints;
         private AudioLoopPoints? sourceLoopPoints;
         private DragHandle dragHandle = DragHandle.None;
-        private AudioFileReader? playbackReader;
+        private AudioSourceReader? playbackReader;
         private WaveOutEvent? playbackOutput;
         private Rectangle? loopRegion;
         private Line? startHandleLine;
@@ -131,7 +131,7 @@ namespace BMPC.UserControls
         private float[] ReadPeaks(string selectedFilePath)
         {
             var result = new float[PeakCount];
-            using var reader = new AudioFileReader(selectedFilePath);
+            using var reader = new AudioSourceReader(selectedFilePath);
             var buffer = new float[reader.WaveFormat.SampleRate * reader.WaveFormat.Channels / 10];
             var totalSamples = Math.Max(1, reader.Length / Math.Max(1, reader.WaveFormat.BitsPerSample / 8));
             var samplesPerPeak = Math.Max(1, totalSamples / PeakCount);
@@ -498,12 +498,12 @@ namespace BMPC.UserControls
             }
 
             StopPlayback();
-            this.playbackReader = new AudioFileReader(this.filePath)
+            this.playbackReader = new AudioSourceReader(this.filePath)
             {
                 CurrentTime = TimeSpan.FromSeconds(Clamp(this.playheadSeconds, 0, this.durationSeconds))
             };
             this.playbackOutput = new WaveOutEvent();
-            this.playbackOutput.Init(this.playbackReader);
+            this.playbackOutput.Init(AudioTransformer.DownmixToStereo(this.playbackReader));
             this.playbackOutput.Play();
             this.playbackTimer.Start();
             UpdateOverlayVisuals();

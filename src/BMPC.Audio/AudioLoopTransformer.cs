@@ -25,7 +25,7 @@ namespace BMPC.Audio
 
         public static AudioLoopInfo ReadLoopInfo(string filePath)
         {
-            using var reader = new AudioFileReader(filePath);
+            using var reader = new AudioSourceReader(filePath);
             var durationSeconds = reader.TotalTime.TotalSeconds;
             var sampleRate = reader.WaveFormat.SampleRate;
 
