@@ -84,6 +84,37 @@ namespace BMPC.Core
             return result;
         }
 
+        /// <summary>
+        /// Returns the first non-ASCII character (or surrogate pair) in <paramref name="value"/>, or <c>null</c> if there is none.
+        /// </summary>
+        public static string? FindNonAsciiCharacter(string? value)
+        {
+            if (value == null) return null;
+
+            foreach (var rune in value.EnumerateRunes())
+            {
+                if (!rune.IsAscii)
+                {
+                    return rune.ToString();
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// BEE2 can't read non-ASCII text in info.txt (it shows <see cref="EscapeString"/>'s <c>\uXXXX</c> escapes as-is),
+        /// so text written there must be ASCII.
+        /// </summary>
+        /// <returns>A user-facing error message, or <c>null</c> if <paramref name="value"/> is ASCII only.</returns>
+        public static string? GetNonAsciiTextError(string fieldName, string? value)
+        {
+            var character = FindNonAsciiCharacter(value);
+            if (character == null) return null;
+
+            return $"{fieldName} contains \"{character}\", which BEEmod can't display. Use only English letters, numbers and basic symbols (no accented letters, emoji or other special characters).";
+        }
+
         public static string EscapeString(string input)
         {
             if (input == null) return string.Empty;
