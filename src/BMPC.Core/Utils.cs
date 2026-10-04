@@ -13,6 +13,58 @@ namespace BMPC.Core
             }
         }
 
+        /// <summary>
+        /// Best-effort recursive delete. Entries that cannot be deleted (e.g. files locked by another process)
+        /// are skipped instead of throwing.
+        /// </summary>
+        /// <returns><c>true</c> if the directory no longer exists; <c>false</c> if anything was left behind.</returns>
+        public static bool TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (!Directory.Exists(path))
+                {
+                    return true;
+                }
+
+                // Never follow links (symlinks/junctions) into their targets; only remove the link itself.
+                if (new DirectoryInfo(path).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    Directory.Delete(path);
+                    return true;
+                }
+
+                var success = true;
+                foreach (var file in Directory.GetFiles(path))
+                {
+                    try
+                    {
+                        File.Delete(file);
+                    }
+                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                    {
+                        success = false;
+                    }
+                }
+
+                foreach (var directory in Directory.GetDirectories(path))
+                {
+                    success &= TryDeleteDirectory(directory);
+                }
+
+                if (success)
+                {
+                    Directory.Delete(path);
+                }
+
+                return success;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+        }
+
         public static string ConvertToSafeFileName(string val)
         {
             string result = val;
