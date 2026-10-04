@@ -36,6 +36,51 @@ public class PackageCacheServiceTests
     }
 
     [Fact]
+    public void GetSongCache_WhenNewSongSharesBasePath_DoesNotUseOtherSongsPackagedAssets()
+    {
+        var service = new PackageCacheService();
+        var context = CreateContext(new PackageSong
+        {
+            SongId = Guid.Parse("77777777-7777-7777-7777-777777777777"),
+            Name = "Song A",
+            IconFullPath = "icon.png",
+            BaseFullPath = "track.wav",
+            BaseLoopPoints = new AudioLoopPoints { StartSeconds = 0, EndSeconds = 10 },
+            SpeedGelSfxFullPaths = ["speed.wav"]
+        });
+        var song = new PackageSong
+        {
+            SongId = Guid.Parse("88888888-8888-8888-8888-888888888888"),
+            Name = "Song B",
+            IconFullPath = "icon.png",
+            BaseFullPath = "track.wav",
+            BaseLoopPoints = new AudioLoopPoints { StartSeconds = 0, EndSeconds = 10 },
+            SpeedGelSfxFullPaths = ["speed.wav"]
+        };
+
+        var cache = service.GetSongCache(context, song);
+
+        Assert.Null(cache.OldSong);
+        Assert.False(cache.IsBaseSourcePackaged(song));
+        Assert.False(cache.IsBaseAudioCached(song));
+        Assert.False(cache.IsIconCached(song));
+        Assert.False(cache.IsSpeedGelSfxCached(song, 0));
+    }
+
+    [Fact]
+    public void GetSongCache_WhenOldSongHasNoSongId_FallsBackToBasePath()
+    {
+        var service = new PackageCacheService();
+        var context = CreateContext(new PackageSong { Name = "Legacy Song", BaseFullPath = "same.wav" });
+        var song = new PackageSong { SongId = Guid.NewGuid(), Name = "Current", BaseFullPath = "same.wav" };
+
+        var cache = service.GetSongCache(context, song);
+
+        Assert.Equal("legacysong", cache.OldBaseFileName);
+        Assert.True(cache.IsBaseSourcePackaged(song));
+    }
+
+    [Fact]
     public void CacheFlags_RequireUnchangedSourcePaths()
     {
         var service = new PackageCacheService();

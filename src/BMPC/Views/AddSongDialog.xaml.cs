@@ -18,8 +18,8 @@ namespace BMPC.Views
         private readonly Dictionary<string, string> packagedAudioFiles = new();
         private readonly IAppPaths appPaths;
 
-        public AddSongDialog(SongItemModel? existingModel = null)
-            : this(new FileDialogService(), new MessageDialogService(), new AppPaths(), existingModel)
+        public AddSongDialog(SongItemModel? existingModel = null, IEnumerable<string>? otherSongNames = null)
+            : this(new FileDialogService(), new MessageDialogService(), new AppPaths(), existingModel, otherSongNames)
         {
         }
 
@@ -27,12 +27,13 @@ namespace BMPC.Views
             IFileDialogService fileDialogService,
             IMessageDialogService messageDialogService,
             IAppPaths appPaths,
-            SongItemModel? existingModel = null)
+            SongItemModel? existingModel = null,
+            IEnumerable<string>? otherSongNames = null)
         {
             this.appPaths = appPaths;
             ThemeService.PrepareWindow(this);
             InitializeComponent();
-            this.ViewModel = new AddSongDialogViewModel(fileDialogService, messageDialogService, appPaths, existingModel);
+            this.ViewModel = new AddSongDialogViewModel(fileDialogService, messageDialogService, appPaths, existingModel, otherSongNames);
             this.DataContext = ViewModel;
 
             this.ViewModel.RequestClose += Close;

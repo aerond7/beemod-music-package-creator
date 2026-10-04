@@ -187,6 +187,14 @@ namespace BMPC.ViewModels
                         Package = p
                     });
                 }
+
+                if (loader.InvalidFiles.Count > 0)
+                {
+                    var fileNames = string.Join("\n", loader.InvalidFiles.Select(f => "- " + Path.GetFileName(f)));
+                    this.messageDialogService.ShowWarning(
+                        $"These package files are damaged and could not be read, so they were skipped:\n\n{fileNames}\n\n" +
+                        $"Remove or replace them in \"{Path.GetFullPath(this.appPaths.PackagesDirectory)}\" to stop seeing this message.");
+                }
             }
             catch (Exception ex)
             {

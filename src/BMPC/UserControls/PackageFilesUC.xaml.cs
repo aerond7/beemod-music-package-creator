@@ -83,6 +83,17 @@ namespace BMPC.UserControls
                 }
             }
 
+            for (var i = 0; i < SongItems.Count; i++)
+            {
+                var name = SongItems[i].Name;
+                var nameError = Utils.GetEmptySafeNameError("Music name", name)
+                    ?? Utils.GetDuplicateSongNameError(name, SongItems.Take(i).Select(s => s.Name));
+                if (nameError != null)
+                {
+                    return new PackageSetupStageValidationResult(false, $"Edit the song \"{name}\" to fix this: {nameError}");
+                }
+            }
+
             return new PackageSetupStageValidationResult
             {
                 IsValid = true
@@ -91,7 +102,7 @@ namespace BMPC.UserControls
 
         private void AddSongButton_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths);
+            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths, otherSongNames: SongItems.Select(s => s.Name));
 
             if (dialog.ShowDialog() == true)
             {
@@ -121,7 +132,7 @@ namespace BMPC.UserControls
                 return;
             }
 
-            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths, item);
+            var dialog = new AddSongDialog(this.fileDialogService, this.messageDialogService, this.appPaths, item, SongItems.Where(s => s != item).Select(s => s.Name));
             if (dialog.ShowDialog() == true)
             {
                 var index = SongItems.IndexOf(item);

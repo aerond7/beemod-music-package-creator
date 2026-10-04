@@ -36,6 +36,7 @@ namespace BMPC.Core.Packaging
         public async Task Import(PackageData data, string? oldPackageId = null, IProgress<string>? progress = null)
         {
             progress ??= new Progress<string>();
+            ValidateNames(data);
             var context = await this.CreateContext(data, oldPackageId);
 
             try
@@ -74,6 +75,23 @@ namespace BMPC.Core.Packaging
                 {
                     Directory.Delete(context.TempRoot, true);
                 }
+            }
+        }
+
+        // Fail before any audio is encoded if names would produce an empty package ID or colliding song files.
+        private static void ValidateNames(PackageData data)
+        {
+            var error = Utils.GetEmptySafeNameError("Package name", data.Name);
+            for (var i = 0; error == null && i < data.Songs.Count; i++)
+            {
+                var name = data.Songs[i].Name;
+                error = Utils.GetEmptySafeNameError("Music name", name)
+                    ?? Utils.GetDuplicateSongNameError(name, data.Songs.Take(i).Select(s => s.Name));
+            }
+
+            if (error != null)
+            {
+                throw new InvalidOperationException(error);
             }
         }
 
