@@ -334,6 +334,15 @@ namespace BMPC.ViewModels
                 return;
             }
 
+            var asciiError = Utils.GetNonAsciiTextError("Music name", MusicName)
+                ?? Utils.GetNonAsciiTextError("Description", MusicDescription)
+                ?? Utils.GetNonAsciiTextError("Authors", MusicAuthors);
+            if (asciiError != null)
+            {
+                this.messageDialogService.ShowWarning(asciiError);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(BaseMusicFilePath) ||
                 (!_isEditMode && !File.Exists(BaseMusicFilePath)))
             {

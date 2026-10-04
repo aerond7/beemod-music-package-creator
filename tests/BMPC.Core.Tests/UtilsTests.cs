@@ -81,6 +81,41 @@ public class UtilsTests
         }
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("Plain ASCII ~!@#$%^&*()_+-={}[]|\\:\";'<>?,./`")]
+    [InlineData("tab\tnew\r\nline")]
+    public void FindNonAsciiCharacter_WhenAsciiOnly_ReturnsNull(string? value)
+    {
+        Assert.Null(Utils.FindNonAsciiCharacter(value));
+    }
+
+    [Theory]
+    [InlineData("Café", "é")]
+    [InlineData("Björk and Bjørn", "ö")]
+    [InlineData("music \U0001F3B5 note", "\U0001F3B5")]
+    [InlineData("non breaking", " ")]
+    public void FindNonAsciiCharacter_ReturnsFirstNonAsciiCharacter(string value, string expected)
+    {
+        Assert.Equal(expected, Utils.FindNonAsciiCharacter(value));
+    }
+
+    [Fact]
+    public void GetNonAsciiTextError_WhenAsciiOnly_ReturnsNull()
+    {
+        Assert.Null(Utils.GetNonAsciiTextError("Package name", "Cafe"));
+    }
+
+    [Fact]
+    public void GetNonAsciiTextError_NamesFieldAndCharacter()
+    {
+        var result = Utils.GetNonAsciiTextError("Package name", "Café");
+
+        Assert.NotNull(result);
+        Assert.StartsWith("Package name contains \"é\"", result);
+    }
+
     [Fact]
     public void EscapeString_EscapesUnicodeCharacters()
     {

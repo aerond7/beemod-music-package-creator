@@ -44,6 +44,11 @@ namespace BMPC.UserControls
 
             if (string.IsNullOrWhiteSpace(TxtDescription.Text.Trim())) return new PackageSetupStageValidationResult(false, "Enter a description");
 
+            var asciiError = Utils.GetNonAsciiTextError("Package name", TxtName.Text)
+                ?? Utils.GetNonAsciiTextError("Description", TxtDescription.Text)
+                ?? Utils.GetNonAsciiTextError("Group name", TxtGroup.Text);
+            if (asciiError != null) return new PackageSetupStageValidationResult(false, asciiError);
+
             var safeName = Utils.ConvertToSafeFileName(TxtName.Text.Trim()).ToLowerInvariant();
             var originalSafeName = _originalPackageName != null
                 ? Utils.ConvertToSafeFileName(_originalPackageName).ToLowerInvariant()

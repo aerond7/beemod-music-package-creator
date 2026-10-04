@@ -1,4 +1,5 @@
 ﻿using BMPC.Commands;
+using BMPC.Core;
 using BMPC.Interfaces;
 using BMPC.Models;
 using BMPC.Services;
@@ -67,6 +68,19 @@ namespace BMPC.UserControls
             if (SongItems.Count <= 0)
             {
                 return new PackageSetupStageValidationResult(false, "You must add at least 1 song to your package");
+            }
+
+            // Songs loaded from an existing package may contain text that the add/edit song dialog would now reject.
+            foreach (var song in SongItems)
+            {
+                var asciiError = Utils.GetNonAsciiTextError("Music name", song.Name)
+                    ?? Utils.GetNonAsciiTextError("Description", song.Description)
+                    ?? Utils.GetNonAsciiTextError("Authors", song.Authors)
+                    ?? Utils.GetNonAsciiTextError("Group name", song.Group);
+                if (asciiError != null)
+                {
+                    return new PackageSetupStageValidationResult(false, $"Edit the song \"{song.Name}\" to fix this: {asciiError}");
+                }
             }
 
             return new PackageSetupStageValidationResult
