@@ -20,19 +20,8 @@ namespace BMPC.Audio
 
                 using var reader = new AudioFileReader(inputFilePath);
 
-                // resample to 44100Hz if necessary
-                var resampler = new WdlResamplingSampleProvider(reader, DesiredSampleRate);
-
-                if (reader.WaveFormat.SampleRate == DesiredSampleRate && reader.WaveFormat.Channels == 2)
-                {
-                    resampler = null; // skip resampling if already desired sample rate and stereo
-                }
-
-                // convert to stereo if needed
-                ISampleProvider stereo = resampler == null ? reader : resampler.ToStereo();
-
                 var outFormat = new WaveFormat(DesiredSampleRate, 16, 2);
-                var waveProvider = new SampleToWaveProvider16(stereo);
+                var waveProvider = new SampleToWaveProvider16(ToStereo44100(reader));
 
                 // Source has no loop-end; it plays to the end of the audio data and loops back
                 // to the cue point. So a loop end is realized by trimming the PCM here, before
@@ -122,7 +111,10 @@ namespace BMPC.Audio
             {
                 using (var reader = new AudioFileReader(inputFilePath))
                 {
-                    MediaFoundationEncoder.EncodeToMp3(reader, outputFilePath, 64000); // 64kbps is enough for a sample
+                    // The MP3 encoder only accepts a few sample rates, so encode the same
+                    // 44100Hz 16-bit stereo audio that goes into the game WAV.
+                    var waveProvider = new SampleToWaveProvider16(ToStereo44100(reader));
+                    MediaFoundationEncoder.EncodeToMp3(waveProvider, outputFilePath, 64000); // 64kbps is enough for a sample
                 }
             }
             catch (Exception ex)
@@ -138,6 +130,17 @@ namespace BMPC.Audio
             {
                 IsSuccessful = true
             };
+        }
+
+        private static ISampleProvider ToStereo44100(ISampleProvider source)
+        {
+            if (source.WaveFormat.SampleRate == DesiredSampleRate && source.WaveFormat.Channels == 2)
+            {
+                return source; // skip resampling if already desired sample rate and stereo
+            }
+
+            // resample to 44100Hz and convert to stereo
+            return new WdlResamplingSampleProvider(source, DesiredSampleRate).ToStereo();
         }
     }
 }
