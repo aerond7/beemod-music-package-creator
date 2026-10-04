@@ -22,6 +22,42 @@ public class UtilsTests
         Assert.Equal("goodname", result);
     }
 
+    [Theory]
+    [InlineData("???")]
+    [InlineData(" . , ; ' ")]
+    [InlineData("<>|*")]
+    public void GetEmptySafeNameError_WhenOnlyStrippedCharacters_ReturnsError(string name)
+    {
+        var error = Utils.GetEmptySafeNameError("Music name", name);
+
+        Assert.NotNull(error);
+        Assert.StartsWith("Music name", error);
+    }
+
+    [Fact]
+    public void GetEmptySafeNameError_WhenNameKeepsCharacters_ReturnsNull()
+    {
+        Assert.Null(Utils.GetEmptySafeNameError("Package name", "My Pack!"));
+    }
+
+    [Theory]
+    [InlineData("mysong")]
+    [InlineData("My.Song")]
+    [InlineData("MY SONG?")]
+    public void GetDuplicateSongNameError_WhenSafeNamesMatch_NamesConflictingSong(string name)
+    {
+        var error = Utils.GetDuplicateSongNameError(name, ["Other", "My Song"]);
+
+        Assert.NotNull(error);
+        Assert.Contains("\"My Song\"", error);
+    }
+
+    [Fact]
+    public void GetDuplicateSongNameError_WhenSafeNamesDiffer_ReturnsNull()
+    {
+        Assert.Null(Utils.GetDuplicateSongNameError("My Song!", ["My Song 2", "Other"]));
+    }
+
     [Fact]
     public void EscapeString_EscapesQuotesBackslashesAndNewlines()
     {

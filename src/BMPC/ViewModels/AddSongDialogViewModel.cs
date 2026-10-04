@@ -246,12 +246,13 @@ namespace BMPC.ViewModels
         public ICommand ClearSfxCommand { get; private set; }
 
         private readonly bool _isEditMode;
+        private readonly IReadOnlyList<string> otherSongNames;
         private readonly IFileDialogService fileDialogService;
         private readonly IMessageDialogService messageDialogService;
         private readonly IAppPaths appPaths;
 
-        public AddSongDialogViewModel(SongItemModel? existingModel = null)
-            : this(new FileDialogService(), new MessageDialogService(), new AppPaths(), existingModel)
+        public AddSongDialogViewModel(SongItemModel? existingModel = null, IEnumerable<string>? otherSongNames = null)
+            : this(new FileDialogService(), new MessageDialogService(), new AppPaths(), existingModel, otherSongNames)
         {
         }
 
@@ -259,11 +260,13 @@ namespace BMPC.ViewModels
             IFileDialogService fileDialogService,
             IMessageDialogService messageDialogService,
             IAppPaths appPaths,
-            SongItemModel? existingModel = null)
+            SongItemModel? existingModel = null,
+            IEnumerable<string>? otherSongNames = null)
         {
             this.fileDialogService = fileDialogService;
             this.messageDialogService = messageDialogService;
             this.appPaths = appPaths;
+            this.otherSongNames = otherSongNames?.ToList() ?? new List<string>();
             this.SelectIconCommand = new RelayCommand(IconSelectCommand);
             this.SelectSoundFileCommand = new RelayCommand(SelectSoundFile);
             this.CancelCommand = new RelayCommand(CancelAddingCommand);
@@ -340,6 +343,14 @@ namespace BMPC.ViewModels
             if (asciiError != null)
             {
                 this.messageDialogService.ShowWarning(asciiError);
+                return;
+            }
+
+            var nameError = Utils.GetEmptySafeNameError("Music name", MusicName)
+                ?? Utils.GetDuplicateSongNameError(MusicName, this.otherSongNames);
+            if (nameError != null)
+            {
+                this.messageDialogService.ShowWarning(nameError);
                 return;
             }
 

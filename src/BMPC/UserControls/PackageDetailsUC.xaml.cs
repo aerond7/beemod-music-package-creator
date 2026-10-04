@@ -49,6 +49,9 @@ namespace BMPC.UserControls
                 ?? Utils.GetNonAsciiTextError("Group name", TxtGroup.Text);
             if (asciiError != null) return new PackageSetupStageValidationResult(false, asciiError);
 
+            var nameError = Utils.GetEmptySafeNameError("Package name", TxtName.Text.Trim());
+            if (nameError != null) return new PackageSetupStageValidationResult(false, nameError);
+
             var safeName = Utils.ConvertToSafeFileName(TxtName.Text.Trim()).ToLowerInvariant();
             var originalSafeName = _originalPackageName != null
                 ? Utils.ConvertToSafeFileName(_originalPackageName).ToLowerInvariant()

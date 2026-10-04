@@ -31,6 +31,37 @@ public class PackageLoaderTests
         Assert.Equal("Test package", loaded.Name);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("{\"Id\":\"BMPC_BRO")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    public void LoadPackages_WhenFileCorrupt_SkipsItAndLoadsOtherPackages(string corruptContents)
+    {
+        using var scope = CurrentDirectoryScope.Create();
+        var metadataDirectory = Path.Combine(scope.DirectoryPath, Constants.PackagesDirectory);
+        var beePackageDirectory = Path.Combine(scope.DirectoryPath, Constants.BeePackagesDirectory);
+        Directory.CreateDirectory(metadataDirectory);
+        Directory.CreateDirectory(beePackageDirectory);
+
+        File.WriteAllText(Path.Combine(metadataDirectory, "valid.bmpc"), JsonSerializer.Serialize(new BmpcPackage
+        {
+            Id = "BMPC_VALID_PACK",
+            Name = "Valid package"
+        }));
+        File.WriteAllText(Path.Combine(beePackageDirectory, "BMPC_VALID_PACK.bee_pack"), "bee");
+        var corruptPath = Path.Combine(metadataDirectory, "corrupt.bmpc");
+        File.WriteAllText(corruptPath, corruptContents);
+
+        var loader = new PackageLoader(metadataDirectory);
+        var packages = loader.LoadPackages();
+
+        var loaded = Assert.Single(packages);
+        Assert.Equal("BMPC_VALID_PACK", loaded.Id);
+        Assert.Equal(corruptPath, Assert.Single(loader.InvalidFiles));
+        Assert.True(File.Exists(corruptPath));
+    }
+
     [Fact]
     public void LoadPackages_WhenBeePackMissing_DeletesStaleMetadataAndSkipsPackage()
     {

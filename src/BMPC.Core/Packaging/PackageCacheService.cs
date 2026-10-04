@@ -25,13 +25,15 @@ namespace BMPC.Core.Packaging
                 return null;
             }
 
-            PackageSong? oldSong = null;
-            if (song.SongId.HasValue)
+            if (!song.SongId.HasValue)
             {
-                oldSong = oldEditData.Songs.FirstOrDefault(s => s.SongId == song.SongId);
+                return oldEditData.Songs.FirstOrDefault(s => s.BaseFullPath == song.BaseFullPath);
             }
 
-            return oldSong ?? oldEditData.Songs.FirstOrDefault(s => s.BaseFullPath == song.BaseFullPath);
+            // The path fallback is only for legacy songs saved without a SongId. A song whose ID matches no
+            // old song was added during the edit and must not reuse another song's packaged assets.
+            return oldEditData.Songs.FirstOrDefault(s => s.SongId == song.SongId)
+                ?? oldEditData.Songs.FirstOrDefault(s => !s.SongId.HasValue && s.BaseFullPath == song.BaseFullPath);
         }
     }
 

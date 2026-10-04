@@ -85,6 +85,31 @@ namespace BMPC.Core
         }
 
         /// <summary>
+        /// Package IDs and song asset file names are built from <see cref="ConvertToSafeFileName"/>,
+        /// so a name must keep at least one character after conversion.
+        /// </summary>
+        /// <returns>A user-facing error message, or <c>null</c> if <paramref name="value"/> can be used.</returns>
+        public static string? GetEmptySafeNameError(string fieldName, string value)
+        {
+            if (ConvertToSafeFileName(value).Length > 0) return null;
+
+            return $"{fieldName} must contain letters or numbers. Spaces and symbols like . , ; ' ? * : / \\ \" < > | are removed from file names, so a name made only of them can't be used.";
+        }
+
+        /// <summary>
+        /// Songs in one package must have different <see cref="ConvertToSafeFileName"/> results, otherwise their files overwrite each other.
+        /// </summary>
+        /// <returns>A user-facing error message, or <c>null</c> if no name in <paramref name="otherNames"/> conflicts with <paramref name="name"/>.</returns>
+        public static string? GetDuplicateSongNameError(string name, IEnumerable<string> otherNames)
+        {
+            var safeName = ConvertToSafeFileName(name);
+            var conflict = otherNames.FirstOrDefault(other => ConvertToSafeFileName(other) == safeName);
+            if (conflict == null) return null;
+
+            return $"The song name \"{name}\" is too similar to \"{conflict}\", which is already in this package. Song names must differ by more than spaces, letter case and symbols like . , ; ' ? * : / \\ \" < > |.";
+        }
+
+        /// <summary>
         /// Returns the first non-ASCII character (or surrogate pair) in <paramref name="value"/>, or <c>null</c> if there is none.
         /// </summary>
         public static string? FindNonAsciiCharacter(string? value)
